@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interferenz am Doppelspalt</title>
+<style>
+:root{
+  --bg:#0d1016; --panel:#141922; --panel2:#1c222d; --ink:#e8ecf2; --muted:#98a2b0; --line:#2a3240; --accent:#5aa9f0;
+  --good:#3fcf8e; --bad:#ff7a7a; --mid:#f2c14e;
+}
+:root[data-theme="light"]{
+  --bg:#f6f6f3; --panel:#ffffff; --panel2:#f0f0eb; --ink:#1b1f24; --muted:#5b6470; --line:#d8d8d0; --accent:#1f6fd1;
+  --good:#16884f; --bad:#c0392b; --mid:#a8780a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);height:52px}
+header h1{font-size:18px;margin:0;font-weight:650;white-space:nowrap}
+header .sub{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .sp{flex:1}
+button{white-space:nowrap;font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 350px;height:calc(100vh - 52px)}
+main.nopanel{grid-template-columns:minmax(0,1fr)}
+main.nopanel aside{display:none}
+.stage{position:relative;min-height:420px}
+#c{display:block;width:100%;height:100%;touch-action:none}
+.viewbtn{position:absolute;right:12px;bottom:10px;font-size:12px;opacity:.9}
+.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);pointer-events:none;background:var(--bg);padding:3px 8px;border-radius:6px;opacity:.9;max-width:calc(100% - 200px)}
+aside{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px 16px 24px}
+section{margin-bottom:16px}
+h2{font-size:13px;letter-spacing:.02em;color:var(--muted);margin:0 0 6px;font-weight:600}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.val{font-variant-numeric:tabular-nums;font-weight:650}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:6px;border:1px solid var(--line)}
+input[type=range]{width:100%;margin:6px 0 2px;accent-color:var(--accent)}
+#lam{appearance:none;-webkit-appearance:none;height:12px;border-radius:6px;outline:none}
+#lam::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid #333;cursor:pointer}
+#lam::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid #333;cursor:pointer}
+.scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px}
+.chip{padding:2px 9px;font-size:13px;border-radius:999px;min-width:34px;font-variant-numeric:tabular-nums}
+.chiplabel{font-size:12px;color:var(--muted);margin-top:2px}
+label.ck{display:flex;gap:8px;align-items:center;padding:2px 0;cursor:pointer}
+label.ck input{accent-color:var(--accent);width:16px;height:16px}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{font-size:13px;padding:4px 8px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card .title{font-weight:650;margin-bottom:4px}
+.verdict{font-weight:600;margin:2px 0 8px}
+.verdict.good{color:var(--good)} .verdict.bad{color:var(--bad)} .verdict.mid{color:var(--mid)}
+.meas{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:13px}
+.meas div:nth-child(odd){color:var(--muted)}
+.meas div:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+#ov{width:100%;height:130px;display:block;margin-top:6px}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+.note{font-size:12px;color:var(--muted)}
+.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;user-select:none}
+.switch input{display:none}
+button.step{font-size:13px;padding:3px 9px}
+button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
+.switch .tr{width:38px;height:22px;border-radius:11px;background:var(--line);position:relative;transition:background .15s}
+.switch .tr::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.switch input:checked + .tr{background:var(--accent)}
+.switch input:checked + .tr::after{left:19px}
+.note p{margin:0 0 6px}
+@media (max-width:900px){
+  main,main.nopanel{grid-template-columns:1fr;height:auto}
+  .stage{height:62vh}
+  aside{border-left:0;border-top:1px solid var(--line)}
+  header .sub{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="h1">Interferenz am Doppelspalt</h1>
+  <span class="sp"></span>
+  <button id="boxT" class="on" title="Infokasten mit Δs, α und s ein- oder ausblenden">Infokasten</button>
+  <button id="panelT" class="on" title="Einstellungen rechts ein- oder ausblenden">Einstellungen</button>
+  <button id="theme" title="Hell/Dunkel umschalten">Hell</button>
+</header>
+<main>
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <button id="reset" class="viewbtn" title="Auch per Doppelklick">Ansicht zurücksetzen</button>
+  </div>
+  <aside>
+    <section>
+      <h2>Blende</h2>
+      <div class="seg" id="mode">
+        <button data-m="double" class="on">Doppelspalt</button>
+        <button data-m="grating">Gitter</button>
+      </div>
+      <div id="nBox" style="display:none;margin-top:8px">
+        <div class="row"><h2>Anzahl der Spalte N</h2><span class="val" id="nV"></span></div>
+        <input type="range" id="N" min="3" max="20" step="1" value="6">
+        <div class="scale"><span>3</span><span>20</span></div>
+        <label class="switch" style="margin-top:8px"><input type="checkbox" id="n100"><span class="tr"></span><span>100 Spalte</span></label>
+      </div>
+    </section>
+    <section>
+      <div class="row"><h2>Wellenlänge λ</h2><span class="val"><span class="swatch" id="sw"></span><span id="lamV"></span></span></div>
+      <input type="range" id="lam" min="380" max="750" step="1" value="630">
+      <div class="scale"><span>380 nm</span><span>750 nm</span></div>
+      <label class="switch" style="margin-top:8px"><input type="checkbox" id="white"><span class="tr"></span><span>Weißes Licht</span></label>
+      <div class="note" id="whiteNote" style="display:none;margin-top:4px">Der Schirm zeigt das Interferenzbild aller Farben von 380 bis 750 nm. Strahlen, Wellen und Markierungen gehören zur oben eingestellten Wellenlänge.</div>
+    </section>
+    <section>
+      <div class="row"><h2>Spaltabstand b (Gitterkonstante)</h2><span class="val" id="bV"></span></div>
+      <input type="range" id="b" min="1" max="20" step="0.1" value="10">
+      <div class="scale"><span>1 µm</span><span>20 µm</span></div>
+    </section>
+    <section>
+      <div class="row"><h2>Abstand Doppelspalt–Schirm e</h2><span class="val" id="eV"></span></div>
+      <input type="range" id="e" min="1" max="5" step="0.1" value="3">
+      <div class="scale"><span>1 m</span><span>5 m</span></div>
+    </section>
+    <section>
+      <h2>Punkt auf dem Schirm</h2>
+      <div class="chiplabel">Maxima (Ordnung k, + oben, − unten)</div>
+      <div class="chips" id="chMax"></div>
+      <div class="chiplabel" id="chMinL">Minima</div>
+      <div class="chips" id="chMin"></div>
+      <h2 style="margin-top:10px">Übersicht</h2>
+      <div class="title" id="selTitle" style="font-weight:650;margin-bottom:4px"></div>
+      <div class="meas" id="meas"></div>
+    </section>
+    <section>
+      <h2>Überlagerung im gewählten Punkt</h2>
+      <div class="legend"><span><i id="lg1"></i>Welle aus Spalt 1</span><span><i id="lg2" style="border-top-style:dashed"></i><span id="lg2t">Welle aus Spalt 2</span></span><span><i id="lg3"></i>Summe</span></div>
+      <canvas id="ov"></canvas>
+    </section>
+    <section>
+      <h2>Anzeige</h2>
+      <label class="ck"><input type="checkbox" data-k="rays" checked>Strahlen (graue Linien)</label>
+      <label class="ck"><input type="checkbox" data-k="waves" checked>Wellen auf den Strahlen</label>
+      <label class="ck"><input type="checkbox" data-k="crests">Wellenberge (durchgezogen)</label>
+      <label class="ck"><input type="checkbox" data-k="troughs">Wellentäler (gestrichelt)</label>
+      <label class="ck"><input type="checkbox" data-k="gang" checked>Gangunterschied Δs</label>
+      <label class="ck"><input type="checkbox" data-k="help" checked><span>Hilfslinien (e, e<sub>k</sub>, s<sub>k</sub>, α<sub>k</sub>)</span></label>
+      <label class="ck"><input type="checkbox" data-k="max" checked>Maxima markieren</label>
+      <label class="ck"><input type="checkbox" data-k="min" checked>Minima markieren</label>
+      <label class="ck"><input type="checkbox" data-k="intens" checked>Helligkeit am Schirm</label>
+    </section>
+    <section>
+      <h2>Hintergrund (Wellenfeld)</h2>
+      <div class="seg" id="field">
+        <button data-f="none" class="on">Aus</button>
+        <button data-f="snap">Momentanbild</button>
+        <button data-f="int">Intensität</button>
+      </div>
+    </section>
+    <section>
+      <div class="row"><h2>Geschwindigkeit</h2><span class="val" id="spV"></span></div>
+      <div class="row" style="justify-content:flex-start;gap:10px">
+        <label class="switch"><input type="checkbox" id="play" checked><span class="tr"></span><span id="playV">Animation läuft</span></label>
+        <button id="stepB" class="step" title="Einzelbild zurück (1/24 Periode)" disabled>◀ Bild</button>
+        <button id="stepF" class="step" title="Einzelbild vor (1/24 Periode)" disabled>Bild ▶</button>
+      </div>
+      <input type="range" id="sp" min="0.1" max="2" step="0.1" value="1">
+    </section>
+    <section class="note">
+      <h2>Hinweise zum Modell</h2>
+      <p>Beim Gitter bezeichnet Δs den Gangunterschied zwischen benachbarten Spalten. Zwischen zwei Hauptmaxima liegen N − 2 schwache Nebenmaxima; je mehr Spalte, desto schärfer die Hauptmaxima.</p>
+      <p>Die beiden Spalte wirken als punktförmige, gleichphasige Quellen (Spaltbreite vernachlässigt).</p>
+      <p>Die Darstellung ist nicht maßstabsgetreu: Der Schirm steht im Bild viel näher und die Wellenlänge ist stark vergrößert, damit die Wellenzüge gut sichtbar sind. Dadurch erscheinen die Winkel im Bild größer als in echt. Die Phasen, mit denen die Wellen am Schirm ankommen, stimmen trotzdem. Alle angezeigten Werte (α<sub>k</sub>, s<sub>k</sub>, Δs) sind mit dem echten Abstand e berechnet. Weil e ≫ b ist, gilt dort exakt Δs = b·sin α<sub>k</sub> und s<sub>k</sub> = e·tan α<sub>k</sub>.</p>
+      <p>Die Wellen im Bild kommen am Schirm in genau der Phase an, die sie in Wirklichkeit dort haben. Das gilt auch für die Hintergrund-Wellenfelder (Momentanbild und Intensität).</p>
+      <p>Ein Maximum k-ter Ordnung gibt es nur, wenn k·λ kleiner als b ist. Bei sehr kleinem b (z. B. 1 µm) entsteht deshalb nur noch das 1. Maximum. Liegt ein Maximum außerhalb des Bildes, mit dem Mausrad herauszoomen.</p>
+      <p>Die Maxima liegen exakt dort, wo Δs = k·λ ist, die Minima dort, wo Δs = (k − ½)·λ ist.</p>
+    </section>
+  </aside>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const st = {
+  lam: 0.63, b: 10, e: 3,
+  sel: { type: 'max', k: 1 },
+  show: { box: true, rays: true, waves: true, crests: false, troughs: false, gang: true, help: true, max: true, min: true, intens: true },
+  field: 'none', white: false, grating: false, N: 6, n100: false, playing: true, speed: 1, tau: 0, theme: 'dark'
+};
+const V = 1.0;          // Phasengeschwindigkeit im Modell (µm/s)
+const WW = 19;          // sichtbare Weltbreite in µm (x von -3 bis e+4)
+const B_MIN = 3, LAM_MAX = 0.75, K_MAX = 3;   // bis zum 3. Maximum, auch bei 750 nm sichtbar
+
+const fmt = (x, d) => (x < 0 ? '−' : '') + Math.abs(x).toFixed(d).replace('.', ',');
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+// ---------- Farben ----------
+function wl2rgb(w) {
+  let r = 0, g = 0, b = 0;
+  if (w < 440) { r = (440 - w) / 60; b = 1; }
+  else if (w < 490) { g = (w - 440) / 50; b = 1; }
+  else if (w < 510) { g = 1; b = (510 - w) / 20; }
+  else if (w < 580) { r = (w - 510) / 70; g = 1; }
+  else if (w < 645) { r = 1; g = (645 - w) / 65; }
+  else { r = 1; }
+  let f = 1;
+  if (w < 420) f = 0.55 + 0.45 * (w - 380) / 40;
+  else if (w > 700) f = 0.55 + 0.45 * (750 - w) / 50;
+  const c = x => Math.round(255 * Math.pow(Math.max(0, x) * f, 0.8));
+  return [c(r), c(g), c(b)];
+}
+function waveRGB() {
+  const c = wl2rgb(st.lam * 1000);
+  if (st.theme === 'dark') {
+    // sehr dunkles Violett/Rot etwas aufhellen
+    const lum = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+    if (lum < 70) return c.map(v => Math.round(v + (255 - v) * 0.25));
+    return c;
+  }
+  const lum = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+  const f = lum > 150 ? 0.62 : 0.85;
+  return c.map(v => Math.round(v * f));
+}
+function gangColor(rgb) {
+  const cand = st.theme === 'dark'
+    ? [[255, 61, 242], [41, 230, 255], [255, 225, 74], [255, 255, 255]]
+    : [[214, 0, 200], [0, 150, 190], [200, 140, 0], [0, 0, 0]];
+  let best = cand[0], bd = -1;
+  for (const c of cand) {
+    const d = (c[0] - rgb[0]) ** 2 + (c[1] - rgb[1]) ** 2 + (c[2] - rgb[2]) ** 2;
+    if (d > bd) { bd = d; best = c; }
+  }
+  return `rgb(${best[0]},${best[1]},${best[2]})`;
+}
+function theme() {
+  return st.theme === 'dark'
+    ? { bg: '#0d1016', ink: '#e8ecf2', muted: '#98a2b0', barrier: '#c9ced6', help: 'rgba(232,236,242,0.55)', faint: 'rgba(232,236,242,0.18)' }
+    : { bg: '#f6f6f3', ink: '#1b1f24', muted: '#5b6470', barrier: '#3a3f46', help: 'rgba(27,31,36,0.6)', faint: 'rgba(27,31,36,0.15)' };
+}
+
+// ---------- Darstellung und Physik ----------
+// Das Bild ist nicht maßstabsgetreu: Weltkoordinaten sind Darstellungseinheiten. Die Wellenlänge im Bild ist vergrößert,
+// dadurch sind die Winkel im Bild um den Faktor mag() (für sin α) gespreizt. Die Phasen am Schirm stimmen trotzdem,
+// und alle angezeigten Werte (b, λ in µm, e in m) werden im Fernfeld exakt mit den echten Winkeln berechnet.
+const EW = () => 8 + 2.5 * (st.e - 1);                                        // Schirmabstand im Bild
+// Spaltabstand im Bild; beim Gitter so begrenzt, dass das ganze Gitter höchstens 9 (bei 100 Spalten 6) Einheiten breit ist
+const bW = () => { const g = 0.6 + 0.34 * st.b; const n = nSlits(); return st.grating ? Math.min(g, (n <= 20 ? 9 : 6) / (n - 1)) : g; };
+const KL = 1.15;                                                               // gewünschte Bild-Wellenlänge pro µm
+// Spreizung sin α(Bild) = mag · sin α(echt); begrenzt, damit das höchste echte Maximum (bis 3.) bei 750 nm im Bild bleibt
+function mag() {
+  const K = Math.max(1, Math.min(K_MAX, Math.floor(st.b / LAM_MAX - 1e-9)));
+  return clamp(KL * st.b / bW(), 1, Math.max(1, 0.95 * st.b / (K * LAM_MAX)));
+}
+const lamW = () => mag() * st.lam * bW() / st.b;                              // λ im Bild
+// Spaltpositionen von oben nach unten: Doppelspalt bei ±b/2, Gitter mit N Spalten im Abstand b
+// bei 100 Spalten nur jede 10. Strecke bzw. Welle hervorheben
+const markStep = () => 10;
+const nSlits = () => st.grating ? (st.n100 ? 100 : st.N) : 2;
+function slitYs() { const n = nSlits(), a = []; for (let j = 0; j < n; j++) a.push(((n - 1) / 2 - j) * bW()); return a; }
+const rTo = (sy, y) => Math.hypot(EW(), y - sy);
+const rsAt = y => slitYs().map(sy => rTo(sy, y));
+// Winkel eines Schirmpunkts (von der Blendenmitte aus) im Bild und der zugehörige echte Winkel
+const angleOf = y => Math.atan2(y, EW());
+const sinReal = y => Math.sin(angleOf(y)) / mag();
+const realAngle = y => Math.asin(sinReal(y));
+// echter Gangunterschied benachbarter Spalte in µm, positiv oberhalb der Achse
+const delta = y => st.b * sinReal(y);
+// echter Abstand vom 0. Maximum auf dem Schirm in m
+const sReal = y => st.e * Math.tan(realAngle(y));
+// I / I_max aus den Wegen rs (für das Hintergrundfeld im Bild)
+function intensity(rs, L) {
+  const k = 2 * Math.PI / L; let c = 0, s = 0;
+  for (const r of rs) { c += Math.cos(k * r); s += Math.sin(k * r); }
+  return (c * c + s * s) / (rs.length * rs.length);
+}
+// echte Intensität am Schirmpunkt y für die Wellenlänge L (µm)
+function screenI(y, L) {
+  const ph = Math.PI * delta(y) / L, sn = Math.sin(ph), n = nSlits();
+  if (Math.abs(sn) < 1e-9) return 1;
+  return (Math.sin(n * ph) / (n * sn)) ** 2;
+}
+// Strahlen laufen im Bild geradlinig vom Spalt zum Schirmpunkt
+const rayPath = (y0, yP) => [[0, y0], [EW(), yP]];
+// Phasenwege (Darstellungseinheiten) so, dass am Schirm die echten Gangunterschiede j·b·sin α ankommen
+function pathsAt(y) {
+  const s = slitYs(), sa = Math.sin(angleOf(y)), C = rTo(0, y);   // Bezug: Abstand von der Blendenmitte
+  return s.map(y0 => C - y0 * sa);
+}
+// Schirmpunkt (im Bild) zum echten Gangunterschied D (µm)
+const solveY = D => EW() * Math.tan(Math.asin(clamp(mag() * D / st.b, -0.999, 0.999)));
+const inPicture = D => mag() * Math.abs(D) / st.b < 0.97;
+
+// ---------- Canvas-Layout ----------
+const cv = $('c'), ctx = cv.getContext('2d');
+let W = 0, H = 0, dpr = 1, S = 1, X0 = 0, YC = 0, YV = 1;
+const wx = x => X0 + x * S, wy = y => YC - y * S;
+function layout() {
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height; dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  S0 = W / (12 + 1.5 + 3.4);                // Maßstab der Standardansicht (bezogen auf e = 12 µm)
+  if (view.cx === null) resetView(); else applyView();
+  recompute();
+}
+// Zoom/Verschiebung: view.z = Zoomfaktor, (view.cx, view.cy) = Weltpunkt in der Canvas-Mitte
+const view = { z: 1, cx: null, cy: 0 };
+let S0 = 1;
+const defaultCx = () => -1.5 + (W / 2) / (S0 * view.z);
+function applyView() {
+  S = S0 * view.z; X0 = W / 2 - view.cx * S; YC = H / 2 + view.cy * S;
+  YV = Math.max(Math.abs(YC), Math.abs(H - YC)) / S;
+}
+// Standardansicht: links 1,5 µm einfallendes Licht; bei großem e so weit herauszoomen, dass der Schirm sichtbar bleibt
+// Platz links (einfallendes Licht) und rechts (Intensitätskurve, Beschriftung) in Pixeln
+const MARGIN_L = 90, MARGIN_R = 250;
+function fitZoom() {
+  const yNeed = Math.abs(slitYs()[0]) + 1;
+  return Math.min(1, (W - MARGIN_L - MARGIN_R) / (EW() * S0), (H / 2 - 30) / (yNeed * S0));
+}
+// Ansicht anpassen, wenn Schirm oder äußere Spalte aus dem Bild laufen würden
+function ensureVisible() {
+  if (wx(EW()) > W - 120 || wx(EW()) < W * 0.5 || wx(0) < 0 || wy(slitYs()[0]) < 30 || wy(slitYs()[nSlits() - 1]) > H - 30) resetView();
+}
+function resetView() {
+  view.z = fitZoom();
+  const left = view.z >= 1 ? 1.5 * S0 : MARGIN_L;   // Pixel links vom Spalt
+  view.cx = (W / 2 - left) / (S0 * view.z); view.cy = 0; applyView();
+}
+
+// ---------- Maxima / Minima ----------
+let pts = [];
+function recompute() {
+  pts = [];
+  const L = st.lam, b = st.b, lim = YV - 0.2;
+  const K = Math.min(K_MAX, Math.floor(b / L - 1e-9));
+  for (let k = -K; k <= K; k++) {
+    const y = solveY(k * L);
+    pts.push({ type: 'max', k, y, D: k * L, vis: inPicture(k * L) });
+  }
+  for (let m = 1; !st.grating && m <= K_MAX && (m - 0.5) * L < b - 1e-9; m++) {
+    for (const sg of [1, -1]) {
+      const D = sg * (m - 0.5) * L, y = solveY(D);
+      pts.push({ type: 'min', k: sg * m, y, D, vis: inPicture(D) });
+    }
+  }
+  const p = findSel();
+  if (st.sel.type !== 'free' && (!p || !p.vis)) {
+    const same = pts.filter(q => q.type === st.sel.type && q.vis && Math.sign(q.k) === Math.sign(st.sel.k))
+                    .sort((a, c) => Math.abs(c.k) - Math.abs(a.k));
+    st.sel = same.length ? { type: same[0].type, k: same[0].k } : { type: 'max', k: 0 };
+  }
+  buildChips(); updateInfo();
+}
+const findSel = () => pts.find(q => q.type === st.sel.type && q.k === st.sel.k);
+const selY = () => st.sel.type === 'free' ? st.free : (findSel() || { y: 0 }).y;
+// Gangunterschied als Vielfaches von λ (an den markierten Punkten exakt k bzw. k − ½)
+function lamText(n) {
+  if (st.sel.type === 'free') return fmt(Math.abs(n), 2) + '·λ';
+  const a = Math.abs(n), r2 = Math.round(a * 2) / 2;
+  return (Number.isInteger(r2) ? String(r2) : fmt(r2, 1)) + '·λ';
+}
+
+function chipText(p) {
+  if (p.k === 0) return '0';
+  return (p.k > 0 ? '+' : '−') + Math.abs(p.k);
+}
+function buildChips() {
+  for (const [type, box] of [['max', $('chMax')], ['min', $('chMin')]]) {
+    box.innerHTML = '';
+    pts.filter(p => p.type === type && p.vis).sort((a, c) => a.k - c.k).forEach(p => {
+      const bt = document.createElement('button');
+      bt.className = 'chip' + (st.sel.type === type && st.sel.k === p.k ? ' on' : '');
+      bt.textContent = chipText(p);
+      bt.title = (type === 'max' ? (p.k === 0 ? 'Hauptmaximum' : Math.abs(p.k) + '. Maximum') : Math.abs(p.k) + '. Minimum')
+               + (p.k > 0 ? ' oben' : p.k < 0 ? ' unten' : '');
+      bt.onclick = () => { st.sel = { type, k: p.k }; buildChips(); updateInfo(); };
+      box.appendChild(bt);
+    });
+  }
+}
+
+function updateInfo() {
+  const y = selY(), L = st.lam, n = delta(y) / L;
+  const al = realAngle(y), k = st.sel.k;
+  const side = k > 0 ? ' (oben)' : k < 0 ? ' (unten)' : '';
+  $('selTitle').textContent = st.sel.type === 'free' ? 'Frei verschobener Punkt' : st.sel.type === 'max'
+    ? (k === 0 ? 'Hauptmaximum (0. Ordnung)' : `${Math.abs(k)}. Maximum${side}`)
+    : `${Math.abs(k)}. Minimum${side}`;
+  const rows = [
+    ['Winkel α<sub>k</sub>', `${fmt(Math.abs(al) * 180 / Math.PI, 2)}°`],
+    ['Abstand s<sub>k</sub> auf dem Schirm', `${fmt(Math.abs(sReal(y)) * 100, 1)} cm`],
+    [st.grating ? 'Gangunterschied Δs<br>(benachbarte Spalte)' : 'Gangunterschied Δs', `${lamText(n)} = ${fmt(Math.abs(delta(y)) * 1000, 0)} nm`]
+  ];
+  $('meas').innerHTML = rows.map(r => `<div>${r[0]}</div><div>${r[1]}</div>`).join('');
+}
+
+// ---------- Hintergrund-Wellenfeld ----------
+let fieldCache = null;
+const fcan = document.createElement('canvas'), fctx = fcan.getContext('2d');
+function ensureField(kw) {
+  // Rasterweite: fein genug, dass auch kurze Wellenlängen im Bild ohne Moiré erscheinen
+  const D = clamp(Math.floor(2 * Math.PI / kw * S / 4), 1, 3), sy = slitYs(), E = EW(), key = `${W}|${H}|${bW()}|${E}|${sy.length}|${S}|${X0}|${YC}|${kw}`;
+  if (fieldCache && fieldCache.key === key) return fieldCache;
+  const fw = Math.ceil(W / D), fh = Math.ceil(H / D), n = fw * fh;
+  // Summen Σcos(k·r), Σsin(k·r) je Bildpunkt; die einzelnen Wege nur bei wenigen Spalten speichern (für weißes Licht)
+  const keep = sy.length <= 20, rs = keep ? sy.map(() => new Float32Array(n)) : null;
+  const sc = new Float32Array(n), ss = new Float32Array(n), inside = new Uint8Array(n);
+  for (let j = 0; j < fh; j++) for (let i = 0; i < fw; i++) {
+    const x = ((i + 0.5) * D - X0) / S, y = (YC - (j + 0.5) * D) / S, id = j * fw + i;
+    inside[id] = x >= 0 && x <= E ? 1 : 0;
+    // Weg von Spalt q, ohne den Nahfeld-Anteil y_q²·cos³θ/(2e): so liegen die Maxima des Feldes am Schirm genau
+    // dort, wo die Wellen auf den Strahlen ankommen (wichtig beim breiten Gitter); nahe der Blende bleibt das Bild
+    // das der einzelnen Kreiswellen
+    const rc = Math.hypot(x, y), c3 = rc > 0 ? (x / rc) ** 3 : 0;
+    if (!inside[id]) continue;
+    let c = 0, sn = 0;
+    for (let q = 0; q < sy.length; q++) {
+      const r = Math.hypot(x, y - sy[q]) - sy[q] * sy[q] * c3 / (2 * E);
+      if (keep) rs[q][id] = r;
+      c += Math.cos(kw * r); sn += Math.sin(kw * r);
+    }
+    sc[id] = c; ss[id] = sn;
+  }
+  fcan.width = fw; fcan.height = fh;
+  fieldCache = { key, D, fw, fh, rs, sc, ss, ns: sy.length, inside, img: fctx.createImageData(fw, fh) };
+  return fieldCache;
+}
+// ---------- Weißes Licht: Überlagerung der Intensitäten aller Wellenlängen ----------
+function spectrum(step) {
+  const ls = [], sum = [0, 0, 0];
+  for (let w = 380; w <= 750; w += step) { const c = wl2rgb(w); ls.push([w / 1000, c]); sum[0] += c[0]; sum[1] += c[1]; sum[2] += c[2]; }
+  return { ls, sum };
+}
+// Farbe aus I(λ) für alle Wellenlängen; in der Mitte (alle Wege gleich) ergibt sich Weiß
+function whiteColor(fnI, sp) {
+  let r = 0, g = 0, b = 0;
+  for (const [l, c] of sp.ls) { const I = fnI(l); r += I * c[0]; g += I * c[1]; b += I * c[2]; }
+  return [255 * r / sp.sum[0], 255 * g / sp.sum[1], 255 * b / sp.sum[2]];
+}
+let screenCache = null;
+function screenColors() {
+  const key = `${H}|${S}|${YC}|${st.b}|${st.e}|${nSlits()}|${bW()}`;
+  if (screenCache && screenCache.key === key) return screenCache.cols;
+  const sp = spectrum(5), cols = [];
+  for (let py = 0; py <= H; py += 2) {
+    // bei vielen Spalten sehr schmale Linien: je Bildzeile das Maximum mehrerer Proben
+    const sub = nSlits() > 10 ? 6 : 1, c = [0, 0, 0];
+    for (let u = 0; u < sub; u++) {
+      const y = (YC - py - 2 * u / sub) / S, cu = whiteColor(l => screenI(y, l), sp);
+      for (let q = 0; q < 3; q++) c[q] = Math.max(c[q], cu[q]);
+    }
+    // schmale Linien enthalten nur wenige Wellenlängen und wären sehr dunkel: aufhellen
+    if (sub > 1) { const boost = nSlits() / 8; for (let q = 0; q < 3; q++) c[q] = Math.min(255, c[q] * boost); }
+    cols.push(`rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`);
+  }
+  screenCache = { key, cols };
+  return cols;
+}
+let whiteFieldKey = null;
+const wfcan = document.createElement('canvas'), wfctx = wfcan.getContext('2d');
+function drawField(rgb, kw, ph) {
+  if (st.white && st.field === 'int' && nSlits() <= 20) {
+    const F = ensureField(kw);
+    if (whiteFieldKey !== F.key) {
+      wfcan.width = F.fw; wfcan.height = F.fh;
+      const img = wfctx.createImageData(F.fw, F.fh), d = img.data, sp = spectrum(F.rs.length > 2 ? 25 : 15);
+      const tmp = new Array(F.rs.length);
+      for (let i = 0; i < F.fw * F.fh; i++) {
+        if (!F.inside[i]) continue;
+        for (let q = 0; q < tmp.length; q++) tmp[q] = F.rs[q][i];
+        const c = whiteColor(l => intensity(tmp, l * mag() * bW() / st.b), sp), o = i * 4;
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 200;
+      }
+      wfctx.putImageData(img, 0, 0); whiteFieldKey = F.key;
+    }
+    ctx.save();
+    ctx.beginPath(); ctx.rect(wx(0), 0, wx(EW()) - wx(0), H); ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(wfcan, 0, 0, F.fw * F.D, F.fh * F.D);
+    ctx.restore();
+    return;
+  }
+  const F = ensureField(kw), d = F.img.data, n = F.fw * F.fh;
+  const snap = st.field === 'snap', ns = F.ns, cp = Math.cos(ph), sp = Math.sin(ph);
+  for (let i = 0; i < n; i++) {
+    const o = i * 4;
+    if (!F.inside[i]) { d[o + 3] = 0; continue; }
+    let a;
+    if (snap) {
+      const v = F.ss[i] * cp - F.sc[i] * sp;   // Σ sin(k·r − φ)
+      a = (v / ns + 1) / 2;
+    } else {
+      a = (F.sc[i] * F.sc[i] + F.ss[i] * F.ss[i]) / (ns * ns);
+    }
+    d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = Math.round(a * a * 190);
+  }
+  fctx.putImageData(F.img, 0, 0);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(wx(0), 0, wx(EW()) - wx(0), H); ctx.clip();
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(fcan, 0, 0, F.fw * F.D, F.fh * F.D);
+  ctx.restore();
+}
+function drawFronts(wca, kw, ph) {
+  const L = lamW(), base = ((Math.PI / 2 + ph) / kw) % L;
+  const rmax = Math.hypot(EW(), YV + bW() * nSlits());
+  ctx.save();
+  ctx.beginPath(); ctx.rect(wx(0), 0, wx(EW()) - wx(0), H); ctx.clip();
+  ctx.lineWidth = 1.4;
+  const kinds = [];
+  if (st.show.crests) kinds.push([0, [], 0.55]);           // Wellenberge
+  if (st.show.troughs) kinds.push([L / 2, [5, 5], 0.45]);  // Wellentäler
+  for (const [off, dash, al] of kinds) {
+    ctx.strokeStyle = wca(al); ctx.setLineDash(dash);
+    for (const sy of slitYs()) {
+      for (let t = base + off - L; t < rmax; t += L) {
+        if (t <= 0) continue;
+        ctx.beginPath(); ctx.arc(wx(0), wy(sy), t * S, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+      }
+    }
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ---------- Zeichenhilfen ----------
+function line(x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+function arrowHead(x, y, ang, sz) {
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - sz * Math.cos(ang - 0.4), y - sz * Math.sin(ang - 0.4));
+  ctx.lineTo(x - sz * Math.cos(ang + 0.4), y - sz * Math.sin(ang + 0.4));
+  ctx.closePath(); ctx.fill();
+}
+function dimArrow(x1, y1, x2, y2) {
+  line(x1, y1, x2, y2);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  arrowHead(x2, y2, a, 7); arrowHead(x1, y1, a + Math.PI, 7);
+}
+function label(main, sub, x, y, align, color, size) {
+  size = size || 14;
+  ctx.fillStyle = color; ctx.textBaseline = 'middle';
+  ctx.font = `italic ${size}px "Times New Roman", Georgia, serif`;
+  const w1 = ctx.measureText(main).width;
+  ctx.font = `italic ${Math.round(size * 0.72)}px "Times New Roman", Georgia, serif`;
+  const w2 = sub ? ctx.measureText(sub).width + 1 : 0;
+  let x0 = x;
+  if (align === 'center') x0 = x - (w1 + w2) / 2; else if (align === 'right') x0 = x - w1 - w2;
+  ctx.textAlign = 'left';
+  ctx.font = `italic ${size}px "Times New Roman", Georgia, serif`;
+  ctx.fillText(main, x0, y);
+  if (sub) { ctx.font = `italic ${Math.round(size * 0.72)}px "Times New Roman", Georgia, serif`; ctx.fillText(sub, x0 + w1 + 1, y + size * 0.3); }
+}
+function text(t, x, y, align, color, size, weight) {
+  ctx.font = `${weight || 400} ${size || 13}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+  ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(t, x, y);
+}
+function tag(t, x, y, T) {
+  ctx.font = '600 13px system-ui, -apple-system, "Segoe UI", sans-serif';
+  const w = ctx.measureText(t).width + 12;
+  ctx.fillStyle = T.bg; ctx.globalAlpha = 0.85; ctx.fillRect(x - w / 2, y - 10, w, 20); ctx.globalAlpha = 1;
+  text(t, x, y, 'center', T.ink, 13, 600);
+}
+function drawWave(sx, sy, px, py, kw, ph, ampW, color, lw, dash, t0, tEnd) {
+  t0 = t0 || 0;   // bereits zurückgelegter (optischer) Weg am Startpunkt
+  const r0 = Math.hypot(px - sx, py - sy), ux = (px - sx) / r0, uy = (py - sy) / r0, nx = -uy, ny = ux;
+  const r = tEnd === undefined ? r0 : Math.min(r0, tEnd);   // nur das Stück vom Start bis tEnd zeichnen
+  const step = 1.2 / S;
+  // nur den sichtbaren Teil berechnen (wichtig bei starkem Zoom)
+  let ta = 0, tb = r;
+  const m = ampW + 2 / S, xa = -X0 / S - m, xb = (W - X0) / S + m, ya = (YC - H) / S - m, yb = YC / S + m;
+  for (const [p0, u, lo, hi] of [[sx, ux, xa, xb], [sy, uy, ya, yb]]) {
+    if (Math.abs(u) < 1e-12) { if (p0 < lo || p0 > hi) return; continue; }
+    const t1 = (lo - p0) / u, t2 = (hi - p0) / u;
+    ta = Math.max(ta, Math.min(t1, t2)); tb = Math.min(tb, Math.max(t1, t2));
+  }
+  if (tb <= ta) return;
+  ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.setLineDash(dash || []);
+  ctx.beginPath();
+  for (let t = ta; ; t += step) {
+    if (t > tb) t = tb;
+    const v = Math.sin(kw * (t + t0) - ph) * ampW;
+    const X = sx + ux * t + nx * v, Y = sy + uy * t + ny * v;
+    if (t === ta) ctx.moveTo(wx(X), wy(Y)); else ctx.lineTo(wx(X), wy(Y));
+    if (t >= tb) break;
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+}
+
+// ---------- Hauptzeichnung ----------
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const T = theme();
+  ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H);
+  const L = st.lam, Lw = lamW(), kw = 2 * Math.PI / Lw, ph = kw * V * st.tau;
+  const rgb = waveRGB(), wc = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`, wca = a => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+  const gc = gangColor(rgb);
+  const e = EW(), yP = selY(), sy = slitYs(), ns = sy.length;
+
+  // einfallendes Licht (ebene Welle)
+  ctx.fillStyle = st.white ? (st.theme === 'dark' ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)') : wca(0.08);
+  ctx.fillRect(0, 0, wx(0), H);
+  ctx.lineWidth = 1.5;
+  let xc = ((Math.PI / 2 + ph) / kw) % Lw;
+  while (xc > 0) xc -= Lw;
+  const dense = Lw * S < 4;   // zu dicht: nur Fläche, Linien erst beim Hineinzoomen
+  if (!dense && (st.show.crests || (!st.show.troughs))) {
+    ctx.strokeStyle = wca(0.55);
+    for (let x = xc; wx(x) > 0; x -= Lw) line(wx(x), 0, wx(x), H);
+  }
+  if (!dense && st.show.troughs) {
+    ctx.strokeStyle = wca(0.45); ctx.setLineDash([5, 5]);
+    for (let x = xc + Lw / 2; wx(x) > 0; x -= Lw) if (x <= 0) line(wx(x), 0, wx(x), H);
+    ctx.setLineDash([]);
+  }
+  text('Licht →', 10, 16, 'left', T.muted, 12);
+
+  // Wellenfeld
+  if (st.field === 'snap' && Lw * S < 6) text('Momentanbild: zum Ansehen hineinzoomen', wx(EW() / 2), 16, 'center', T.muted, 12);
+  else if (st.field === 'snap' || st.field === 'int') drawField(rgb, kw, ph);
+  if (st.show.crests || st.show.troughs) drawFronts(wca, kw, ph);
+
+  // Helligkeit am Schirm + Intensitätskurve
+  if (st.show.intens && st.white) {
+    // Farbzerlegung: Schirmstreifen und vergrößerter Schirmausschnitt auf dunklem Grund
+    const x1 = wx(e) + Math.max(0.3 * S, 10), wC = Math.max(2 * S, 100), cols = screenColors();
+    ctx.fillStyle = '#000'; ctx.fillRect(wx(e) - 6, 0, 12, H); ctx.fillRect(x1, 0, wC, H);
+    cols.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(wx(e) - 6, i * 2, 12, 2); ctx.fillRect(x1, i * 2, wC, 2); });
+    ctx.strokeStyle = T.faint; ctx.lineWidth = 1; ctx.strokeRect(x1, 0, wC, H);
+    text('Schirmbild', x1 + wC / 2, 40, 'center', '#ddd', 12);
+  } else if (st.show.intens) {
+    const x1 = wx(e) + Math.max(0.3 * S, 10), wC = Math.max(2 * S, 100);
+    ctx.beginPath(); ctx.moveTo(x1, 0);
+    const sub = ns > 10 ? 6 : 1;   // bei vielen Spalten sehr schmale Maxima: je Bildzeile das Maximum mehrerer Proben
+    for (let py = 0; py <= H; py += 2) {
+      let I = 0;
+      for (let u = 0; u < sub; u++) I = Math.max(I, screenI((YC - py - 2 * u / sub) / S, L));
+      ctx.fillStyle = wca(I * 0.95); ctx.fillRect(wx(e) - 5, py, 10, 2);
+      ctx.lineTo(x1 + I * wC, py);
+    }
+    ctx.lineTo(x1, H); ctx.closePath();
+    ctx.fillStyle = wca(0.18); ctx.fill();
+    ctx.strokeStyle = wc; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = T.faint; ctx.lineWidth = 1; line(x1, 0, x1, H);
+    text('I', x1 + wC, H - 14, 'center', T.muted, 12);
+  }
+
+  // Blende (Doppelspalt oder Gitter)
+  const gp = clamp(0.3 * bW() * S, 1, 6), bx = wx(0);
+  ctx.fillStyle = T.barrier;
+  let top = 0;
+  for (const y of sy) { ctx.fillRect(bx - 3, top, 6, wy(y) - gp - top); top = wy(y) + gp; }
+  ctx.fillRect(bx - 3, top, 6, H - top);
+  // Schirm
+  ctx.strokeStyle = T.barrier; ctx.lineWidth = 2; line(wx(e), 0, wx(e), H);
+  tag(st.grating ? 'Gitter' : 'Doppelspalt', bx, 16, T); tag('Schirm', wx(e), 16, T);
+
+  // Hilfslinien (wie Herleitungsskizze)
+  if (st.show.help) {
+    ctx.strokeStyle = T.help; ctx.fillStyle = T.help; ctx.lineWidth = 1.2;
+    ctx.setLineDash([6, 5]);
+    line(wx(0), wy(0), wx(e), wy(0));          // Achse e
+    const ox = 0;
+    line(wx(ox), wy(0), wx(e), wy(yP));        // e_k bzw. Mittelpunktstrahl
+    ctx.setLineDash([]);
+    {
+      label('e', '', wx(e * 0.62), wy(0) + (yP >= 0 ? 14 : -14), 'center', T.ink);
+      label('e', 'k', wx(e * 0.45), wy(yP * 0.45) + (yP >= 0 ? -14 : 14), 'center', T.ink);
+    }
+    // Winkel α_k
+    const th = Math.atan2(wy(yP) - wy(0), wx(e) - wx(ox));
+    if (Math.abs(th) > 0.01) {
+      const R = Math.min(70, (e - ox) * S * 0.3);
+      ctx.beginPath(); ctx.arc(wx(ox), wy(0), R, Math.min(0, th), Math.max(0, th)); ctx.stroke();
+      label('α', 'k', wx(ox) + (R + 16) * Math.cos(th / 2), wy(0) + (R + 16) * Math.sin(th / 2), 'center', T.ink);
+      // s_k am Schirm
+      const sx = wx(e) - 14;
+      dimArrow(sx, wy(0), sx, wy(yP));
+      label('s', 'k', sx - 6, (wy(0) + wy(yP)) / 2, 'right', T.ink);
+      // rechter Winkel Achse/Schirm
+      const q = 9, sg = yP >= 0 ? -1 : 1;
+      ctx.beginPath(); ctx.moveTo(wx(e) - q, wy(0)); ctx.lineTo(wx(e) - q, wy(0) - sg * q); ctx.stroke();
+    }
+    // b zwischen Spalt 1 und 2
+    const ax = wx(-0.9);
+    ctx.strokeStyle = T.help; ctx.fillStyle = T.help;
+    dimArrow(ax, wy(sy[0]), ax, wy(sy[1]));
+    ctx.setLineDash([3, 3]); line(ax, wy(sy[0]), bx, wy(sy[0])); line(ax, wy(sy[1]), bx, wy(sy[1])); ctx.setLineDash([]);
+    label('b', '', ax - 8, (wy(sy[0]) + wy(sy[1])) / 2, 'right', T.ink, 15);
+  }
+
+  // ausgewählte Strahlen mit Wellen (Spalt 1 durchgezogen, alle anderen gestrichelt)
+  const ra = ns > 20 ? 0.25 : 0.6;   // bei vielen Spalten blasser, sonst wird der Fächer zur Fläche
+  ctx.strokeStyle = st.theme === 'dark' ? `rgba(232,236,242,${ra})` : `rgba(27,31,36,${ra})`; ctx.lineWidth = 1;
+  const rays = sy.map(y => rayPath(y, yP)), ops = pathsAt(yP);
+  if (st.show.rays) for (const pth of rays) { ctx.beginPath(); pth.forEach(([x, y], i) => i ? ctx.lineTo(wx(x), wy(y)) : ctx.moveTo(wx(x), wy(y))); ctx.stroke(); }
+  if (st.show.waves && Lw * S >= 4) {   // bei sehr kleinem Maßstab nur Strahlen (zum Ansehen hineinzoomen)
+    let amp = clamp(Lw * S * 0.55, 8, 34) / S;
+    if (st.grating) amp = Math.min(amp, 0.3 * bW());   // beim Gitter liegen die Spalte dicht
+    ctx.save();
+    ctx.beginPath(); ctx.rect(wx(0) - 20, 0, wx(e) - wx(0) + 20, H); ctx.clip();   // nichts läuft über den Schirm hinaus
+    // Bezugsspalt mit dem kürzesten Weg (wie beim Lot für Δs)
+    const irW = yP >= 0 ? 0 : ns - 1;
+    rays.forEach((pth, j) => {
+      // bei vielen Spalten Wellen nur auf ausgewählten Strahlen, sonst entsteht eine geschlossene Fläche
+      if (ns > 20) { const mj = Math.abs(j - irW); if (mj !== 0 && mj !== 1 && mj !== ns - 1 && mj % markStep(ns) !== 0) return; }
+      const lw = ns > 2 ? 1.8 : 2.2, dash = j === 0 ? null : [7, 4];
+      if (pth.length === 2) {
+        const t0 = ops[j] - rTo(pth[0][1], yP);
+        drawWave(0, pth[0][1], e, yP, kw, ph, amp, wc, lw, dash, t0);
+        // Gangunterschied auf der Welle: die ersten |m|·Δs des längeren Wegs farbig
+        const extra = ops[j] - ops[irW];
+        const mW = Math.abs(j - irW), pick = ns <= 20 || mW === 1 || mW === ns - 1 || mW % markStep(ns) === 0;
+        if (st.show.gang && pick && j !== irW && extra * S > 1.5) drawWave(0, pth[0][1], e, yP, kw, ph, amp, gc, lw + 1.2, dash, t0, extra);
+        return;
+      }
+      // Gitter: bis zur Linse, danach mit dem optischen Weg, den die Linse ergänzt
+      drawWave(0, pth[0][1], pth[1][0], pth[1][1], kw, ph, amp, wc, lw, dash);
+      const seg2 = Math.hypot(e - pth[1][0], yP - pth[1][1]);
+      drawWave(pth[1][0], pth[1][1], e, yP, kw, ph, amp, wc, lw, dash, ops[j] - seg2);
+    });
+    ctx.restore();
+  }
+
+  // Gangunterschied: Lot vom Spalt mit dem kürzesten Weg auf die übrigen Strahlen
+  if (st.show.gang) {
+    const up = yP >= 0, ir = up ? 0 : ns - 1;
+    const ref = { x: 0, y: sy[ir] }, rr = rTo(ref.y, yP);
+    // Fußpunkte F_j auf Strahl j; Strecke Spalt j → F_j = Wegunterschied zu Spalt ir
+    const feet = sy.map(y => { const rj = rTo(y, yP); return { y, d: rj - rr, x: e + (0 - e) * rr / rj, yy: yP + (y - yP) * rr / rj }; });
+    const far = feet[up ? ns - 1 : 0];
+    const dirPt = [e, yP];
+    if (far.d * S > 1.5) {
+      const T2 = theme(), fx = wx(far.x), fy = wy(far.yy);
+      ctx.strokeStyle = T2.ink; ctx.lineWidth = 1.4;
+      line(wx(ref.x), wy(ref.y), fx, fy);
+      // rechter Winkel am äußersten Fußpunkt
+      let u1x = wx(ref.x) - fx, u1y = wy(ref.y) - fy; const l1 = Math.hypot(u1x, u1y); u1x /= l1; u1y /= l1;
+      let u2x = wx(dirPt[0]) - fx, u2y = wy(dirPt[1]) - fy; const l2 = Math.hypot(u2x, u2y); u2x /= l2; u2y /= l2;
+      const q = Math.min(9, l1 * 0.3);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(fx + u1x * q, fy + u1y * q); ctx.lineTo(fx + u1x * q + u2x * q, fy + u1y * q + u2y * q); ctx.lineTo(fx + u2x * q, fy + u2y * q); ctx.stroke();
+      ctx.beginPath(); ctx.arc(fx + (u1x + u2x) * q * 0.5, fy + (u1y + u2y) * q * 0.5, 1.4, 0, 7); ctx.fillStyle = T2.ink; ctx.fill();
+      // Winkel α am Spalt
+      const a1 = Math.atan2(up ? 1 : -1, 0), a2 = Math.atan2(fy - wy(ref.y), fx - wx(ref.x));
+      const R = Math.min(24, l1 * 0.45 / Math.max(1, ns - 1));
+      ctx.beginPath(); ctx.arc(wx(ref.x), wy(ref.y), R, Math.min(a1, a2), Math.max(a1, a2)); ctx.stroke();
+      const am = (a1 + a2) / 2;
+      label('α', 'k', wx(ref.x) + (R + 11) * Math.cos(am), wy(ref.y) + (R + 11) * Math.sin(am), 'center', T2.ink, 13);
+      // Strecken Δs, 2Δs, …
+      ctx.font = 'italic 600 14px "Times New Roman", Georgia, serif';
+      feet.forEach((f, j) => {
+        const m = Math.abs(j - ir);
+        if (m === 0) return;
+        if (ns > 20 && m !== 1 && m !== ns - 1 && m % markStep(ns) !== 0) return;   // bei 100 Spalten nur jede 10. Strecke
+        // sind die Wellen sichtbar, trägt die farbige Welle den Gangunterschied; die Strecke bleibt dann schmal
+        const wavesOn = st.show.waves && lamW() * S >= 4;
+        ctx.strokeStyle = gc; ctx.lineWidth = wavesOn || ns > 20 ? 1.5 : (ns > 2 ? 4 : 5); ctx.lineCap = 'round';
+        line(wx(0), wy(f.y), wx(f.x), wy(f.yy));
+        ctx.lineCap = 'butt';
+        const midx = (wx(0) + wx(f.x)) / 2, midy = (wy(f.y) + wy(f.yy)) / 2;
+        ctx.fillStyle = gc; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        if (ns <= 10 || m === 1 || m === ns - 1) ctx.fillText((m === 1 ? '' : m) + 'Δs', midx + 6, midy + (up ? 13 : -13));
+      });
+    }
+  }
+
+  // Maxima / Minima
+  for (const p of pts) {
+    if (!p.vis) continue;
+    if (p.type === 'max' && !st.show.max) continue;
+    if (p.type === 'min' && !st.show.min) continue;
+    const px = wx(e), py = wy(p.y);
+    ctx.lineWidth = 1.5;
+    if (p.type === 'max') {
+      ctx.beginPath(); ctx.arc(px, py, 5.5, 0, 7); ctx.fillStyle = wc; ctx.fill(); ctx.strokeStyle = T.ink; ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(px, py, 4.5, 0, 7); ctx.fillStyle = T.bg; ctx.fill(); ctx.strokeStyle = T.muted; ctx.stroke();
+    }
+  }
+  // Beschriftung rechts neben der Intensitätskurve
+  const vy = pts.filter(p => p.vis).map(p => p.y).sort((a, c) => a - c);
+  let minGap = 99;
+  for (let i = 1; i < vy.length; i++) minGap = Math.min(minGap, (vy[i] - vy[i - 1]) * S);
+  const lx = wx(e) + Math.max(0.3 * S, 10) + Math.max(2 * S, 100) + 8;
+  for (const p of pts) {
+    if (!p.vis || lx + 36 > W) continue;
+    if (p.type === 'max' && st.show.max) text(p.k === 0 ? '0. Max' : `${Math.abs(p.k)}. Max`, lx, wy(p.y), 'left', T.ink, 11, 600);
+    if (p.type === 'min' && st.show.min && minGap > 13) text(`${Math.abs(p.k)}. Min`, lx, wy(p.y), 'left', T.muted, 10);
+  }
+
+  // gewählter Punkt P
+  const px = wx(e), py = wy(yP);
+  ctx.beginPath(); ctx.arc(px, py, 12, 0, 7); ctx.fillStyle = wca(0.22); ctx.fill();
+  ctx.strokeStyle = gc; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fillStyle = gc; ctx.fill();
+
+  // feste Anzeige oben rechts im Simulationsfeld
+  if (st.show.box) {
+    const n = delta(yP) / L, deg = Math.abs(realAngle(yP)) * 180 / Math.PI;
+    const lines = [];
+    if (st.show.gang) lines.push(['Δs = ' + lamText(n), gc]);
+    lines.push(['α = ' + fmt(deg, 2) + '°', T.ink]);
+    lines.push(['s = ' + fmt(Math.abs(sReal(yP)) * 100, 1) + ' cm', T.ink]);
+    ctx.font = 'italic 600 20px "Times New Roman", Georgia, serif';
+    const bw = Math.max(...lines.map(l => ctx.measureText(l[0]).width)) + 24, bh = lines.length * 26 + 12;
+    // auf der dem gewählten Punkt abgewandten Seite, damit nichts verdeckt wird
+    const bxR = Math.min(wx(e) - 30, W - 16), by = yP > 0 ? H - bh - 44 : 34;
+    ctx.fillStyle = T.bg; ctx.globalAlpha = 0.85; ctx.fillRect(bxR - bw, by, bw, bh); ctx.globalAlpha = 1;
+    ctx.strokeStyle = T.faint; ctx.lineWidth = 1; ctx.strokeRect(bxR - bw, by, bw, bh);
+    lines.forEach((l, i) => {
+      ctx.font = 'italic 600 20px "Times New Roman", Georgia, serif';
+      ctx.fillStyle = l[1]; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(l[0], bxR - bw + 12, by + 19 + i * 26);
+    });
+  }
+
+  // Spaltbeschriftung
+  sy.forEach((y, j) => { if (ns <= 10 || j === 0 || j === ns - 1) text(String(j + 1), bx - 12, wy(y), 'right', T.muted, 12, 600); });
+}
+
+// ---------- Überlagerung im Punkt P ----------
+const ov = $('ov'), octx = ov.getContext('2d');
+function drawOverlay() {
+  const r = ov.getBoundingClientRect(), w = r.width, h = r.height, dp = window.devicePixelRatio || 1;
+  if (ov.width !== Math.round(w * dp)) { ov.width = Math.round(w * dp); ov.height = Math.round(h * dp); }
+  octx.setTransform(dp, 0, 0, dp, 0, 0);
+  const Tm = theme();
+  octx.fillStyle = st.theme === 'dark' ? '#1c222d' : '#f0f0eb'; octx.fillRect(0, 0, w, h);
+  const y = selY(), L = lamW(), kw = 2 * Math.PI / L, om = kw * V, Tp = L / V;
+  const rs = pathsAt(y), ns = rs.length;
+  const rgb = waveRGB(), wc = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  const ys = (h - 16) / (2 * (ns + 0.2)), y0 = h / 2;
+  octx.strokeStyle = Tm.faint; octx.lineWidth = 1;
+  octx.beginPath(); octx.moveTo(0, y0); octx.lineTo(w, y0); octx.stroke();
+  const f = (rr, tt) => Math.sin(kw * rr - om * tt);
+  const trace = (fn, col, lw, dash) => {
+    octx.strokeStyle = col; octx.lineWidth = lw; octx.setLineDash(dash || []);
+    octx.beginPath();
+    for (let i = 0; i <= w; i += 1) {
+      const tt = st.tau - 2.5 * Tp * (1 - i / w);
+      const v = fn(tt);
+      if (i === 0) octx.moveTo(i, y0 - v * ys); else octx.lineTo(i, y0 - v * ys);
+    }
+    octx.stroke(); octx.setLineDash([]);
+  };
+  rs.forEach((rr, j) => trace(tt => f(rr, tt), wc, ns > 2 ? 1.4 : 2, j === 0 ? null : [6, 4]));
+  trace(tt => rs.reduce((acc, rr) => acc + f(rr, tt), 0), Tm.ink, 2.5);
+  octx.fillStyle = Tm.muted; octx.font = '11px system-ui, sans-serif'; octx.textAlign = 'right'; octx.textBaseline = 'top';
+  octx.fillText('Zeit →', w - 6, h - 14);
+}
+
+// ---------- UI ----------
+function setSpectrum() {
+  const stops = [];
+  for (let w = 380; w <= 750; w += 10) { const c = wl2rgb(w); stops.push(`rgb(${c[0]},${c[1]},${c[2]}) ${((w - 380) / 370 * 100).toFixed(1)}%`); }
+  $('lam').style.background = `linear-gradient(to right, ${stops.join(',')})`;
+}
+function refreshLabels() {
+  const rgb = waveRGB(), wc = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  $('lamV').textContent = `${Math.round(st.lam * 1000)} nm`;
+  $('sw').style.background = wc;
+  $('bV').textContent = `${fmt(st.b, 2)} µm`;
+  $('eV').textContent = `${fmt(st.e, 1)} m`;
+  $('spV').textContent = `${fmt(st.speed, 1)}×`;
+  $('lg1').style.borderTopColor = wc; $('lg2').style.borderTopColor = wc;
+  $('lg3').style.borderTopColor = theme().ink;
+}
+$('lam').addEventListener('input', e => { st.lam = +e.target.value / 1000; screenCache = null; refreshLabels(); recompute(); });
+$('b').addEventListener('input', e => { st.b = +e.target.value; fieldCache = null; screenCache = null; ensureVisible(); refreshLabels(); recompute(); });
+$('e').addEventListener('input', ev => {
+  st.e = +ev.target.value;
+  ensureVisible();
+  refreshLabels(); recompute();
+});
+$('sp').addEventListener('input', e => { st.speed = +e.target.value; refreshLabels(); });
+document.querySelectorAll('input[data-k]').forEach(el => el.addEventListener('change', () => { st.show[el.dataset.k] = el.checked; }));
+document.querySelectorAll('#field button').forEach(bt => bt.addEventListener('click', () => {
+  st.field = bt.dataset.f;
+  document.querySelectorAll('#field button').forEach(x => x.classList.toggle('on', x === bt));
+}));
+function setMode(grating) {
+  st.grating = grating;
+  document.querySelectorAll('#mode button').forEach(x => x.classList.toggle('on', (x.dataset.m === 'grating') === grating));
+  $('nBox').style.display = grating ? '' : 'none';
+  $('chMinL').style.display = $('chMin').style.display = grating ? 'none' : '';
+  const name = grating ? 'Gitter' : 'Doppelspalt';
+  $('h1').textContent = 'Interferenz am ' + name; document.title = 'Interferenz am ' + name;
+  $('lg2t').textContent = grating ? 'Wellen aus den übrigen Spalten' : 'Welle aus Spalt 2';
+  if (st.sel.type === 'min') st.sel = { type: 'max', k: Math.sign(st.sel.k) };
+  fieldCache = null; screenCache = null; resetView(); recompute();
+}
+document.querySelectorAll('#mode button').forEach(bt => bt.addEventListener('click', () => setMode(bt.dataset.m === 'grating')));
+$('N').addEventListener('input', ev => { st.N = +ev.target.value; $('nV').textContent = nSlits(); fieldCache = null; screenCache = null; ensureVisible(); recompute(); });
+$('nV').textContent = st.N;
+$('n100').addEventListener('change', ev => {
+  st.n100 = ev.target.checked; $('N').disabled = st.n100; $('nV').textContent = nSlits();
+  fieldCache = null; screenCache = null; resetView(); recompute();
+});
+$('white').addEventListener('change', e => {
+  st.white = e.target.checked;
+  $('whiteNote').style.display = st.white ? '' : 'none';
+});
+$('play').addEventListener('change', e => {
+  st.playing = e.target.checked;
+  $('playV').textContent = st.playing ? 'Animation läuft' : 'Pausiert';
+  $('stepB').disabled = $('stepF').disabled = st.playing;
+});
+$('theme').addEventListener('click', () => {
+  st.theme = st.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = st.theme;
+  $('theme').textContent = st.theme === 'dark' ? 'Hell' : 'Dunkel';
+  refreshLabels();
+});
+
+// Einzelbild vor/zurück bei Pause: 1/24 Periode pro Schritt (Periode T = λ/V)
+const stepFrame = dir => { if (!st.playing) st.tau += dir * (lamW() / V) / 24; };
+$('stepB').addEventListener('click', () => stepFrame(-1));
+$('stepF').addEventListener('click', () => stepFrame(1));
+
+// Auswahl per Klick auf einen Punkt am Schirm, sonst Verschieben; Mausrad zoomt
+let drag = null;
+function canvasPos(ev) { const r = cv.getBoundingClientRect(); return { cx: ev.clientX - r.left, cy: ev.clientY - r.top }; }
+function markerAt(cx, cy) {
+  if (Math.abs(cx - wx(EW())) > 22) return null;
+  let best = null, bd = 16;
+  for (const p of pts) {
+    if ((p.type === 'max' && !st.show.max) || (p.type === 'min' && !st.show.min)) continue;
+    const d = Math.abs(wy(p.y) - cy);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+const nearScreen = cx => Math.abs(cx - wx(EW())) <= 22;
+// Punkt am Schirm setzen: rastet in der Nähe eines Maximums/Minimums ein, sonst frei
+function movePoint(cy, snapPx) {
+  const m = markerAt(wx(EW()), cy);
+  if (m && Math.abs(wy(m.y) - cy) <= snapPx) st.sel = { type: m.type, k: m.k };
+  else { st.sel = { type: 'free' }; st.free = (YC - cy) / S; }
+  buildChips(); updateInfo();
+}
+cv.addEventListener('pointerdown', ev => {
+  const { cx, cy } = canvasPos(ev);
+  cv.setPointerCapture(ev.pointerId);
+  if (nearScreen(cx)) { drag = { point: true }; movePoint(cy, 12); cv.style.cursor = 'ns-resize'; return; }
+  drag = { x: cx, y: cy, vx: view.cx, vy: view.cy };
+  cv.style.cursor = 'grabbing';
+});
+cv.addEventListener('pointermove', ev => {
+  const { cx, cy } = canvasPos(ev);
+  if (drag && drag.point) movePoint(cy, 6);
+  else if (drag) {
+    view.cx = drag.vx - (cx - drag.x) / S; view.cy = drag.vy + (cy - drag.y) / S;
+    applyView();
+  } else cv.style.cursor = nearScreen(cx) ? 'ns-resize' : 'grab';
+});
+const endDrag = () => { drag = null; cv.style.cursor = 'grab'; };
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  const { cx, cy } = canvasPos(ev);
+  const wxm = (cx - X0) / S, wym = (YC - cy) / S;          // Weltpunkt unter der Maus bleibt fest
+  view.z = clamp(view.z * Math.exp(-ev.deltaY * 0.0015), 0.25, 40);
+  const Sn = S0 * view.z;
+  view.cx = wxm - (cx - W / 2) / Sn; view.cy = wym + (cy - H / 2) / Sn;
+  applyView();
+}, { passive: false });
+cv.addEventListener('dblclick', resetView);
+$('reset').addEventListener('click', resetView);
+$('panelT').addEventListener('click', () => {
+  const off = document.querySelector('main').classList.toggle('nopanel');
+  $('panelT').classList.toggle('on', !off);
+});
+$('boxT').addEventListener('click', () => { st.show.box = !st.show.box; $('boxT').classList.toggle('on', st.show.box); });
+
+// ---------- Start ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (st.playing) st.tau += dt * st.speed * 0.6;
+  draw(); drawOverlay();
+  requestAnimationFrame(frame);
+}
+setSpectrum(); refreshLabels();
+new ResizeObserver(layout).observe(cv);
+layout();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
