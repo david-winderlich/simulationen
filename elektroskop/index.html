@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elektroskop-Simulation</title>
+<style>
+:root{
+  --bg:#f6f6f3; --panel:#ffffff; --panel2:#f0f0eb; --ink:#1b1f24; --muted:#5b6470; --line:#d8d8d0; --accent:#1f6fd1;
+  --neg:#0b2a8f; --pos:#8b0d0d; --symfill:#fff;
+  --stage:#ffffff; --metal:#808080; --metal2:#a6a6a6; --edge:#333; --dark:#333; --dark2:#1a1a1a; --label:#333; --hintbg:rgba(255,255,255,.9);
+}
+:root[data-theme="dark"]{
+  --bg:#0d1016; --panel:#141922; --panel2:#1c222d; --ink:#e8ecf2; --muted:#98a2b0; --line:#2a3240; --accent:#5aa9f0;
+  --neg:#7fa8ff; --pos:#ff8080; --symfill:#141922;
+  --stage:#0d1016; --metal:#8c96a3; --metal2:#aab3bf; --edge:#05070a; --dark:#3a4352; --dark2:#566070; --label:#c9d0da; --hintbg:rgba(13,16,22,.9);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);height:52px;background:var(--panel)}
+header h1{font-size:18px;margin:0;font-weight:650;white-space:nowrap}
+header .sub{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .sp{flex:1}
+button{white-space:nowrap;font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 360px;height:calc(100vh - 52px)}
+main.nopanel{grid-template-columns:minmax(0,1fr)}
+main.nopanel aside{display:none}
+.stage{position:relative;min-height:420px;background:var(--stage)}
+#svg{display:block;width:100%;height:100%;touch-action:none;user-select:none}
+.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);pointer-events:none;background:var(--hintbg);padding:3px 8px;border-radius:6px;max-width:calc(100% - 24px)}
+aside{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px 16px 24px}
+section{margin-bottom:16px}
+h2{font-size:13px;letter-spacing:.02em;color:var(--muted);margin:0 0 6px;font-weight:600}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.btns button{flex:1 1 auto}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}
+.val{font-variant-numeric:tabular-nums;font-weight:650}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0;cursor:pointer}
+.switch input{display:none}
+.switch .tg{position:relative;width:42px;height:24px;border-radius:12px;background:#c9ccd2;flex:none;transition:background .15s}
+.switch .tg::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:left .15s}
+.switch input:checked + .tg{background:var(--accent)}
+.switch input:checked + .tg::after{left:21px}
+input[type=range]{width:100%;margin:6px 0 2px;accent-color:var(--accent)}
+.explain{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:110px}
+.explain b{display:block;margin-bottom:4px}
+.legend{display:grid;grid-template-columns:22px 1fr;gap:4px 8px;align-items:center;font-size:13px}
+ol{margin:4px 0 0;padding-left:20px}
+ol li{margin:2px 0}
+.small{font-size:12px;color:var(--muted)}
+@media (max-width:820px){
+  main{grid-template-columns:1fr;height:auto}
+  .stage{height:62vh}
+  aside{border-left:none;border-top:1px solid var(--line)}
+  header .sub{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Elektroskop</h1>
+  <span class="sp"></span>
+  <button id="btnPanel" class="on" title="Einstellungen rechts ein- oder ausblenden">Einstellungen</button>
+  <button id="theme" title="Hell/Dunkel umschalten">Hell</button>
+</header>
+<main id="main">
+  <div class="stage">
+    <svg id="svg" viewBox="0 -40 900 720" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="eGlow">
+          <stop offset="0" stop-color="#3d7bff" stop-opacity=".55"/>
+          <stop offset="1" stop-color="#3d7bff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Gehäuse -->
+      <circle cx="360" cy="410" r="165" fill="none" style="stroke:var(--metal)" stroke-width="7"/>
+      <rect x="338" y="573" width="44" height="50" style="fill:var(--dark);stroke:var(--dark2)" stroke-width="2"/>
+      <rect x="190" y="622" width="340" height="32" style="fill:var(--dark);stroke:var(--dark2)" stroke-width="2"/>
+
+      <!-- Isolator -->
+      <path d="M346,160 L374,160 L374,190 L384,204 L384,242 L336,242 L336,204 L346,190 Z" style="fill:var(--dark);stroke:var(--dark2)" stroke-width="2"/>
+
+      <!-- Teller, Stange, fester Zeiger -->
+      <rect x="290" y="147" width="140" height="7" style="fill:var(--metal);stroke:var(--edge)" stroke-width="1.5"/>
+      <polyline points="360,152 360,282 340,300 340,402 360,414 380,426 380,548" fill="none" style="stroke:var(--edge)" stroke-width="14" stroke-linejoin="miter"/>
+      <polyline points="360,150 360,282 340,300 340,402 360,414 380,426 380,546" fill="none" style="stroke:var(--metal)" stroke-width="10" stroke-linejoin="miter"/>
+
+      <!-- drehbarer Zeiger -->
+      <g id="pointer">
+        <rect x="357" y="319" width="6" height="190" style="fill:var(--metal2);stroke:var(--edge)" stroke-width="1.2"/>
+      </g>
+      <circle cx="360" cy="414" r="5" fill="#f5b041" style="stroke:var(--edge)" stroke-width="1.2"/>
+
+      <g id="chargeLayer"></g>
+      <g id="rod" style="cursor:grab"></g>
+      <g id="rodCharges"></g>
+      <!-- Erdungskabel -->
+      <g id="cableG">
+        <g style="stroke:var(--label)" stroke-width="3" stroke-linecap="round">
+          <line x1="820" y1="600" x2="820" y2="616"/>
+          <line x1="792" y1="616" x2="848" y2="616"/>
+          <line x1="802" y1="626" x2="838" y2="626"/>
+          <line x1="812" y1="636" x2="828" y2="636"/>
+        </g>
+        <text x="820" y="660" text-anchor="middle" font-size="14" style="fill:var(--muted)">Erde</text>
+        <path id="cableOuter" fill="none" stroke="#1e3b14" stroke-width="9" stroke-linecap="round"/>
+        <path id="cableInner" fill="none" stroke="#3f8f2e" stroke-width="6" stroke-linecap="round"/>
+        <path id="cableStripe" fill="none" stroke="#e8d23a" stroke-width="2" stroke-dasharray="10 8"/>
+        <g id="plug" style="cursor:grab">
+          <rect x="-24" y="-7" width="18" height="14" rx="3" fill="#2b2b2b" stroke="#111" stroke-width="1.5"/>
+          <rect x="-7" y="-3" width="8" height="6" fill="#c9a24a" stroke="#6b5420" stroke-width="1"/>
+          <circle cx="-8" cy="0" r="22" fill="transparent"/>
+        </g>
+      </g>
+      <g id="particleLayer"></g>
+      <text id="rodLabel" font-size="14" style="fill:var(--label)" text-anchor="middle"></text>
+    </svg>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Was passiert gerade?</h2>
+      <div class="explain" id="explain"></div>
+    </section>
+
+    <section>
+      <h2>Geriebener Stab</h2>
+      <div class="btns">
+        <button id="btnNeg" class="on">Kunststoffstab (−)</button>
+        <button id="btnPos">Glasstab (+)</button>
+      </div>
+      <div class="btns" style="margin-top:6px">
+        <button id="btnRub">Stab neu reiben</button>
+      </div>
+      <label class="switch" style="margin-top:8px"><span>Influenz aktivieren</span><input type="checkbox" id="swInfl" checked><span class="tg"></span></label>
+    </section>
+
+    <section>
+      <h2>Stab bewegen</h2>
+      <div class="btns">
+        <button id="btnNear">annähern</button>
+        <button id="btnTouch">berühren</button>
+        <button id="btnAway">wegnehmen</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Elektroskop</h2>
+      <p class="small" style="margin:2px 0 6px">Zum Erden das Kabel unten rechts mit der Maus an den Teller ziehen.</p>
+      <div class="btns" style="margin-top:6px">
+        <button id="btnDischarge">Elektroskop entladen</button>
+        <button id="btnReset">Alles zurücksetzen</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Darstellung</h2>
+      <label class="switch"><span>Elektronenfluss sichtbar</span><input type="checkbox" id="swFlow" checked><span class="tg"></span></label>
+      <label class="switch"><span>Ladungen (+/−) anzeigen</span><input type="checkbox" id="swCharges" checked><span class="tg"></span></label>
+      <div class="btns" style="margin:6px 0 8px">
+        <button id="btnAll">alle Ladungen</button>
+        <button id="btnEff" class="on">effektive Ladung</button>
+      </div>
+      <div class="row"><span>Tempo des Elektronenflusses</span><span class="val" id="speedVal">1,0×</span></div>
+      <input type="range" id="speed" min="0.2" max="3" step="0.1" value="1">
+    </section>
+
+    <section>
+      <h2>Ladungsbilanz</h2>
+      <div class="row"><span>Teller und Stange</span><span class="val" id="valTop"></span></div>
+      <div class="row"><span>Zeiger</span><span class="val" id="valBot"></span></div>
+      <div class="row"><span>Elektroskop gesamt</span><span class="val" id="valQ"></span></div>
+      <div class="row"><span>Stab</span><span class="val" id="valR"></span></div>
+    </section>
+
+    <section>
+      <h2>Legende</h2>
+      <div class="legend" id="legEff">
+        <svg width="22" height="22"><circle cx="11" cy="11" r="7.5" stroke-width="1.8" style="fill:var(--symfill);stroke:var(--neg)"/><rect x="6" y="9.5" width="10" height="3" style="fill:var(--neg)"/></svg><span>Elektronenüberschuss</span>
+        <svg width="22" height="22"><circle cx="11" cy="11" r="7.5" stroke-width="1.8" style="fill:var(--symfill);stroke:var(--pos)"/><rect x="6" y="9.5" width="10" height="3" style="fill:var(--pos)"/><rect x="9.5" y="6" width="3" height="10" style="fill:var(--pos)"/></svg><span>Elektronenmangel</span>
+      </div>
+      <div class="legend" id="legAll" style="display:none">
+        <svg width="22" height="22"><circle cx="11" cy="11" r="6" stroke-width="1.5" style="fill:var(--symfill);stroke:var(--pos)"/><rect x="7.5" y="10.1" width="7" height="1.8" style="fill:var(--pos)"/><rect x="10.1" y="7.5" width="1.8" height="7" style="fill:var(--pos)"/></svg><span>positiver Atomrumpf (bleibt an seinem Platz)</span>
+        <svg width="22" height="22"><circle cx="11" cy="11" r="6" stroke-width="1.5" style="fill:var(--symfill);stroke:var(--neg)"/><rect x="7.5" y="10.1" width="7" height="1.8" style="fill:var(--neg)"/></svg><span>Elektron (beweglich)</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Versuche</h2>
+      <b>1. Laden durch Berührung</b>
+      <ol><li>Stab berühren lassen.</li><li>Stab wegnehmen: Der Ausschlag bleibt.</li></ol>
+      <b style="display:block;margin-top:8px">2. Influenz</b>
+      <ol><li>Stab nur annähern, nicht berühren.</li><li>Die Zeiger schlagen aus.</li><li>Stab wegnehmen: Der Ausschlag verschwindet.</li></ol>
+      <b style="display:block;margin-top:8px">3. Laden durch Influenz</b>
+      <ol><li>Stab annähern.</li><li>Erdungskabel an den Teller anlegen.</li><li>Erdungskabel wieder wegziehen.</li><li>Stab wegnehmen: Das Elektroskop ist entgegengesetzt zum Stab geladen.</li></ol>
+      <p class="small" id="noteEff">Modell: Jedes Symbol steht für viele Elektronen. Gezeigt wird nur der Überschuss bzw. Mangel gegenüber dem neutralen Zustand; die positiven Atomrümpfe bleiben fest im Metall.</p>
+      <p class="small" id="noteAll" style="display:none">Modell: Jedes Symbol steht für viele Ladungen. Im neutralen Zustand gehört zu jedem positiven Atomrumpf ein Elektron (Paar aus + und −). Nur die Elektronen können sich bewegen. Ein + ohne Partner bedeutet Elektronenmangel, ein zusätzliches − bedeutet Elektronenüberschuss.</p>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+const NS = "http://www.w3.org/2000/svg";
+const $ = id => document.getElementById(id);
+const svg = $("svg");
+
+// ---------- Geometrie ----------
+const PIVOT = {x:360, y:414};
+const ROD_ANGLE = -9 * Math.PI/180;      // Neigung des Stabs
+const ROD_LEN = 360;
+const CA = Math.cos(ROD_ANGLE), SA = Math.sin(ROD_ANGLE);
+const rodLocal = (lx, ly) => ({x: rod.x + lx*CA - ly*SA, y: rod.y + lx*SA + ly*CA});
+
+// Plätze für Überschuss/Mangel auf Teller und Stange
+const TOP_SLOTS = [
+  [360,136],[343,136],[377,136],[360,196],[326,136],[394,136],[360,232],[309,136],[411,136],
+  [360,268],[292,136],[428,136],[360,214],[360,250],[312,166],[408,166],[296,166],[424,166]
+].map(([x,y]) => ({x,y}));
+// Plätze auf den Zeigern; r = Abstand entlang des drehbaren Zeigers
+const BOT_SLOTS = [
+  {r:64},{r:-64},{x:340,y:330},{x:380,y:504},{r:46},{r:-46},{x:340,y:366},{x:380,y:468},
+  {r:82},{r:-82},{x:380,y:540},{x:340,y:312},{r:28},{r:-28},{x:340,y:348},{x:380,y:486},
+  {x:340,y:384},{x:380,y:522},{x:380,y:450},{x:380,y:436}
+];
+// Plätze auf dem Stab (lokale Koordinaten)
+const ROD_SLOTS = [[-15,0]];
+for (let i=0;i<10;i++){ ROD_SLOTS.push([10+i*18,-23]); ROD_SLOTS.push([10+i*18,23]); }
+
+// Darstellung „alle Ladungen“: feste Atomrümpfe (+), daneben je ein Elektron (−).
+// Ein + ohne Partner zeigt Elektronenmangel, ein zweites − daneben Elektronenüberschuss.
+// n = Seite, auf der die Elektronen sitzen. Die Reihenfolge legt fest, wo zuerst
+// Elektronen fehlen bzw. hinzukommen.
+const fixedSite = (x, y, nx, ny) => ({x, y, nx, ny});
+const TOP_SITES = [356,336,376,316,396,296,416].map(x => fixedSite(x,150, 0,-1))
+  .concat([172,192,212,232,252,272].map(y => fixedSite(360,y, 1,0)));
+const ROT = [-80,90,-60,70,-40,50,-20,30].map(r => ({r}));
+const FIX = [[380,536],[340,310],[380,516],[340,330],[380,496],[340,350],[380,476],[340,370],[380,456],[340,390],[380,436]]
+  .map(([x,y]) => fixedSite(x,y, x < 360 ? -1 : 1, 0));
+const BOT_SITES = [];
+for (let i=0; i<Math.max(ROT.length, FIX.length); i++){ if (ROT[i]) BOT_SITES.push(ROT[i]); if (FIX[i]) BOT_SITES.push(FIX[i]); }
+const ROD_SITES = [];
+for (let i=0;i<18;i++) ROD_SITES.push({lx:6+i*20, side: i%2 ? 1 : -1});
+
+// kind "ion": Atomrumpf, "pair": zugehöriges Elektron, "extra": zusätzliches Elektron
+function sitePos(list, i, kind){
+  const s = list[i % list.length], ring = Math.floor(i / list.length);
+  if (s.lx !== undefined){
+    const ly = kind === "ion" ? -5 : kind === "pair" ? 5 : s.side*(17 + 9*ring);   // zusätzliche Elektronen auf der Staboberfläche
+    return rodLocal(s.lx, ly);
+  }
+  let p, n;
+  if (s.r !== undefined){
+    const ux = Math.sin(theta), uy = -Math.cos(theta), side = s.r > 0 ? 1 : -1;
+    p = {x:PIVOT.x + s.r*ux, y:PIVOT.y + s.r*uy}; n = {x:-uy*side, y:ux*side};
+  } else { p = {x:s.x, y:s.y}; n = {x:s.nx, y:s.ny}; }
+  const d = kind === "ion" ? 0 : kind === "pair" ? 11 : 22 + 9*ring;
+  return {x:p.x + d*n.x, y:p.y + d*n.y};
+}
+const SITES = {top:TOP_SITES, bot:BOT_SITES, rod:ROD_SITES};
+
+// ---------- Zustand ----------
+let top = 0, bot = 0;      // Elektronenüberschuss (negativ = Mangel)
+let R = 14;                // Elektronenüberschuss des Stabs
+let rodSign = 1;           // +1 Kunststoff (−), −1 Glas (+)
+const rod = {x:700, y:90}; let rodTarget = {x:700, y:90}; let dragging = false;
+let influenceOn = true;
+const CABLE_A = {x:820, y:600}, PLUG_REST = {x:735, y:470};
+const plug = {...PLUG_REST}; let plugDrag = false;
+let theta = 0, omega = 0;
+let flowOn = true, chargesOn = true, speed = 1;
+let allMode = false;        // true: alle Ladungen (Paare aus + und −), false: effektive Ladung
+let particles = [];
+let spawnClock = 0;
+const RUB = 14;
+
+function slotPos(list, i){
+  const n = list.length, s = list[i % n], ring = Math.floor(i / n);
+  let p;
+  if (s.r !== undefined) p = {x: PIVOT.x + s.r*Math.sin(theta), y: PIVOT.y - s.r*Math.cos(theta)};
+  else p = {x:s.x, y:s.y};
+  if (ring) { p.x += 11*ring; p.y -= 6*ring; }
+  return p;
+}
+function rodSlotPos(i){
+  const n = ROD_SLOTS.length, s = ROD_SLOTS[i % n], ring = Math.floor(i/n);
+  return rodLocal(s[0] + 9*ring, s[1]);
+}
+// welcher Platz ändert sich, wenn sich der Zähler c um d (±1) ändert
+const slotIdx = (c, d) => d > 0 ? (c >= 0 ? c : -c-1) : (c > 0 ? c-1 : -c);
+
+function contactPoint(){ return rodLocal(0, 16); }
+function plateDist(){
+  const c = contactPoint();
+  const dx = Math.max(0, Math.abs(c.x - 360) - 70);
+  let dy = 0;
+  if (c.y < 147) dy = 147 - c.y; else if (c.y > 154) dy = c.y - 154;
+  return Math.hypot(dx, dy);
+}
+const inContact = () => plateDist() < 3;
+
+// ---------- Erdungskabel ----------
+const PLUG_DIR = (() => { const l = Math.hypot(50, 70); return {x:-50/l, y:-70/l}; })();   // Steckerrichtung
+const cableTouch = () => Math.abs(plug.x - 360) < 74 && plug.y > 138 && plug.y < 164;
+const cableEarthed = () => cableTouch() && !plugDrag;
+const isGrounded = () => cableEarthed();
+function cableCurve(n){
+  // Bezierkurve von der Erdbuchse zum Steckerende
+  const B = {x: plug.x - 24*PLUG_DIR.x, y: plug.y - 24*PLUG_DIR.y};
+  const c1 = {x: CABLE_A.x, y: CABLE_A.y - 110}, c2 = {x: B.x + 55, y: B.y + 75};
+  const pts = [];
+  for (let i=0;i<=n;i++){
+    const t = i/n, u = 1-t;
+    pts.push({x: u*u*u*CABLE_A.x + 3*u*u*t*c1.x + 3*u*t*t*c2.x + t*t*t*B.x,
+              y: u*u*u*CABLE_A.y + 3*u*u*t*c1.y + 3*u*t*t*c2.y + t*t*t*B.y});
+  }
+  return pts;
+}
+function drawCable(){
+  const pts = cableCurve(30);
+  const d = "M" + pts.map(p => p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" L");
+  for (const id of ["cableOuter","cableInner","cableStripe"]) $(id).setAttribute("d", d);
+  const ang = Math.atan2(PLUG_DIR.y, PLUG_DIR.x) * 180/Math.PI;
+  $("plug").setAttribute("transform", `translate(${plug.x},${plug.y}) rotate(${ang})`);
+}
+
+// ---------- Ladungsbilanz mit Elektronen unterwegs ----------
+function incoming(dest){ let n=0; for (const p of particles) if (p.to === dest) n++; return n; }
+function effective(){
+  return {top: top + incoming("top"), bot: bot + incoming("bot"), R: R + incoming("rod")};
+}
+const rnd = v => Math.sign(v) * Math.round(Math.abs(v));
+
+function influence(Reff){
+  // Anzahl verschobener Elektronen durch Influenz. Sie wirkt auch bei Berührung weiter,
+  // weil die restliche Ladung auf dem (isolierenden) Stab bleibt und weiter abstößt bzw. anzieht.
+  // Dadurch füllen die Elektronen vom Stab bei Berührung den Mangel am Teller auf,
+  // statt dass Elektronen aus den Zeigern nach oben zurückwandern.
+  if (!influenceOn) return 0;
+  const p = Math.max(0, 1 - plateDist()/260);
+  return p * 0.9 * Math.abs(Reff);
+}
+
+// Bestimmt die nächsten nötigen Elektronenbewegungen
+function wantedMoves(){
+  const e = effective(), Q = e.top + e.bot;
+  const s = Math.sign(e.R);
+  const k = influence(e.R);
+  const moves = [];
+  // äußerer Austausch
+  const contact = inContact();
+  const earthed = isGrounded();
+  if (contact && earthed){
+    if (e.R > 0) moves.push(["rod","top"]); else if (e.R < 0) moves.push(["top","rod"]);
+    if (Q > 0) moves.push(["top","earth"]); else if (Q < 0) moves.push(["earth","top"]);
+  } else if (contact){
+    const target = rnd((e.R + Q) / 2);
+    if (Q < target) moves.push(["rod","top"]); else if (Q > target) moves.push(["top","rod"]);
+  } else if (earthed){
+    const target = -s * Math.round(k);
+    if (Q < target) moves.push(["earth","top"]); else if (Q > target) moves.push(["top","earth"]);
+  }
+  // innere Verteilung zwischen Teller und Zeigern
+  // Zeigerladung: Anteil der Gesamtladung plus durch Influenz verschobene Elektronen
+  const tBot = rnd(0.55 * (Q + s * k));
+  // nur Elektronen bewegen, die schon angekommen sind (sonst entsteht kurz ein falscher Mangel)
+  const tTop = Q - tBot;
+  if (e.bot > tBot && bot - 1 >= tBot) moves.push(["bot","top"]);
+  else if (e.bot < tBot && top - 1 >= tTop) moves.push(["top","bot"]);
+  return moves;
+}
+
+function countOf(w){ return w === "top" ? top : w === "bot" ? bot : w === "rod" ? R : 0; }
+function addTo(w, d){ if (w === "top") top += d; else if (w === "bot") bot += d; else if (w === "rod") R += d; }
+
+function posFor(w, idx, kind){
+  if (w === "earth") return {x:CABLE_A.x, y:CABLE_A.y + 20}; // Erde
+  if (allMode) return sitePos(SITES[w], idx, kind);
+  if (w === "top") return slotPos(TOP_SLOTS, idx);
+  if (w === "bot") return slotPos(BOT_SLOTS, idx);
+  if (w === "rod") return rodSlotPos(idx);
+}
+
+function startMove(from, to){
+  const e = effective();
+  const c0 = countOf(from);
+  const srcIdx = from === "earth" ? 0 : slotIdx(c0, -1);
+  const dstCount = to === "top" ? e.top : to === "bot" ? e.bot : to === "rod" ? e.R : 0;
+  const dstIdx = to === "earth" ? 0 : slotIdx(dstCount, +1);
+  const a = posFor(from, srcIdx, c0 > 0 ? "extra" : "pair");
+  const b = posFor(to, dstIdx, dstCount >= 0 ? "extra" : "pair");
+  addTo(from, -1);
+  const pts = [a, ...route(from, to), b];
+  particles.push(makeParticle(pts, to, dstIdx));
+}
+
+// Wegpunkte entlang des Leiters
+function route(from, to){
+  const stemDown = [{x:360,y:240},{x:360,y:282},{x:340,y:300},{x:340,y:402},{x:360,y:414}];
+  const plate = {x:360,y:150};
+  const path = [];
+  const seg = w => {
+    if (w === "bot") return stemDown.slice().reverse();     // Zeiger -> Teller
+    if (w === "rod") { const c = contactPoint(); return [c, {x:Math.min(Math.max(c.x,295),425), y:150}]; }
+    if (w === "earth"){
+      // Erde -> Kabel -> Stecker -> Teller
+      return [...cableCurve(24), {x:plug.x, y:plug.y}, {x:Math.min(Math.max(plug.x,295),425), y:150}];
+    }
+    return [];
+  };
+  // vom Start zum Teller
+  const s1 = seg(from);
+  path.push(...s1);
+  if (from !== "top" && to !== "top") path.push(plate);
+  // vom Teller zum Ziel
+  const s2 = seg(to).reverse();
+  path.push(...s2);
+  return path;
+}
+
+function makeParticle(pts, to, idx){
+  let len = 0; const cum = [0];
+  for (let i=1;i<pts.length;i++){ len += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y); cum.push(len); }
+  return {pts, cum, len: Math.max(len,1), s:0, to, idx};
+}
+function particlePos(p){
+  const s = p.s * p.len;
+  let i = 1; while (i < p.cum.length-1 && p.cum[i] < s) i++;
+  const a = p.pts[i-1], b = p.pts[i], L = (p.cum[i]-p.cum[i-1]) || 1, t = Math.min(1, Math.max(0,(s - p.cum[i-1])/L));
+  return {x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t};
+}
+
+function settleInstant(){
+  for (const p of particles) addTo(p.to, 1);
+  particles = [];
+  for (let n=0; n<400; n++){
+    const m = wantedMoves();
+    if (!m.length) break;
+    for (const [f,t] of m){ addTo(f,-1); addTo(t,1); }
+  }
+}
+
+// ---------- Zeichnen ----------
+function el(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function chargeSymbol(g, p, neg, small = allMode){
+  const c = neg ? "var(--neg)" : "var(--pos)";
+  const r = small ? 5.5 : 7, w = small ? 3.4 : 4, h = small ? 0.9 : 1.2;
+  el("circle", {cx:p.x, cy:p.y, r, "stroke-width":small ? 1.4 : 2, style:`fill:var(--symfill);stroke:${c}`}, g);
+  el("rect", {x:p.x-w, y:p.y-h, width:2*w, height:2*h, style:`fill:${c}`}, g);
+  if (!neg) el("rect", {x:p.x-h, y:p.y-w, width:2*h, height:2*w, style:`fill:${c}`}, g);
+}
+// alle Ladungen eines Bereichs: Atomrümpfe, Partner-Elektronen, zusätzliche Elektronen
+function drawAll(g, list, c){
+  const n = list.length;
+  for (let i=0;i<n;i++) chargeSymbol(g, sitePos(list, i, "ion"), false);
+  for (let i=0;i<n;i++) if (!(c < 0 && i < -c)) chargeSymbol(g, sitePos(list, i, "pair"), true);
+  for (let i=0;i<c;i++) chargeSymbol(g, sitePos(list, i, "extra"), true);
+}
+function drawCharges(){
+  const g = $("chargeLayer"); g.textContent = "";
+  const rg = $("rodCharges"); rg.textContent = "";
+  if (!chargesOn) return;
+  if (allMode){ drawAll(g, TOP_SITES, top); drawAll(g, BOT_SITES, bot); drawAll(rg, ROD_SITES, R); return; }
+  for (let i=0;i<Math.abs(top);i++) chargeSymbol(g, slotPos(TOP_SLOTS,i), top > 0);
+  for (let i=0;i<Math.abs(bot);i++) chargeSymbol(g, slotPos(BOT_SLOTS,i), bot > 0);
+  for (let i=0;i<Math.abs(R);i++) chargeSymbol(rg, rodSlotPos(i), R > 0);
+}
+
+function buildRod(){
+  const g = $("rod"); g.textContent = "";
+  const glass = rodSign < 0;
+  const body = glass ? "#cfe3ee" : "#b0b0b0";
+  const tip = glass ? "#a9c9da" : "#8a8a8a";
+  el("rect", {x:0, y:-15, width:ROD_LEN, height:30, fill:body, stroke:"#222", "stroke-width":2.5}, g);
+  if (glass) el("rect", {x:6, y:-10, width:ROD_LEN-12, height:5, fill:"#fff", opacity:.6}, g);
+  el("ellipse", {cx:0, cy:0, rx:7, ry:15, fill:tip, stroke:"#222", "stroke-width":2.5}, g);
+  // breite unsichtbare Greiffläche
+  el("rect", {x:-20, y:-40, width:ROD_LEN+80, height:80, fill:"transparent"}, g);
+}
+
+function drawRod(){
+  $("rod").setAttribute("transform", `translate(${rod.x},${rod.y}) rotate(${ROD_ANGLE*180/Math.PI})`);
+  const lp = rodLocal(ROD_LEN*0.62, -50);
+  const lab = $("rodLabel");
+  lab.setAttribute("x", lp.x); lab.setAttribute("y", lp.y);
+  lab.setAttribute("transform", `rotate(${ROD_ANGLE*180/Math.PI} ${lp.x} ${lp.y})`);
+  lab.textContent = rodSign > 0 ? "Kunststoffstab" : "Glasstab";
+}
+
+function drawParticles(){
+  const g = $("particleLayer"); g.textContent = "";
+  if (!flowOn) return;
+  for (const p of particles){
+    const q = particlePos(p);
+    chargeSymbol(g, q, true);
+  }
+}
+
+const fmtE = n => n === 0 ? "neutral" : (n > 0 ? `${n} × Überschuss (−)` : `${-n} × Mangel (+)`);
+function drawReadout(){
+  const Q = top + bot;
+  $("valTop").textContent = fmtE(top);
+  $("valBot").textContent = fmtE(bot);
+  $("valQ").textContent = Q === 0 ? "neutral" : (Q > 0 ? "negativ geladen" : "positiv geladen");
+  $("valR").textContent = R === 0 ? "ungeladen" : (R > 0 ? "negativ geladen" : "positiv geladen");
+}
+
+let lastExplain = "";
+function explain(){
+  const Q = top + bot, contact = inContact(), k = influence(R), near = k >= 0.5;
+  const grounded = isGrounded();
+  const busy = particles.length > 0;
+  const rodTxt = R > 0 ? "negativ geladene" : "positiv geladene";
+  let h, t;
+  if (contact && grounded){
+    h = "Berührung und Erdung";
+    t = "Stab, Elektroskop und Erde sind leitend verbunden. Die Ladung des Stabs fließt über das Elektroskop und das Erdungskabel zur Erde ab. Alles wird neutral.";
+  } else if (contact){
+    if (R === 0 && Q === 0){ h = "Berührung mit ungeladenem Stab"; t = "Der Stab ist ungeladen. Es fließen keine Elektronen. Mit „Stab neu reiben“ lässt er sich wieder aufladen."; }
+    else if (!influenceOn){
+      h = "Laden durch Berührung";
+      t = rodSign > 0
+        ? "Der Kunststoffstab hat einen Elektronenüberschuss. Bei der Berührung fließen Elektronen vom Stab auf den Teller und verteilen sich über Stange und Zeiger. Beide Zeiger sind nun negativ geladen und stoßen sich ab: Der drehbare Zeiger schlägt aus. Nimmt man den Stab weg, bleibt die Ladung erhalten."
+        : "Der Glasstab hat einen Elektronenmangel. Bei der Berührung fließen Elektronen vom Elektroskop auf den Stab. Zurück bleibt ein Elektronenmangel: Teller, Stange und Zeiger sind positiv geladen, die Zeiger stoßen sich ab. Nimmt man den Stab weg, bleibt die Ladung erhalten.";
+    }
+    else if (rodSign > 0){
+      h = "Laden durch Berührung";
+      t = "Der Kunststoffstab hat einen Elektronenüberschuss. Bei der Berührung fließen Elektronen vom Stab auf den Teller und gleichen dort den Elektronenmangel aus, den die Influenz erzeugt hat. Die restliche Ladung auf dem Stab drückt die Elektronen in den Zeigern weiter nach unten. Die Zeiger bleiben negativ geladen und stoßen sich ab. Nimmt man den Stab weg, verteilen sich die Elektronen auf das ganze Elektroskop: Der Ausschlag wird etwas kleiner, bleibt aber erhalten.";
+    } else {
+      h = "Laden durch Berührung";
+      t = "Der Glasstab hat einen Elektronenmangel. Bei der Berührung fließen die Elektronen, die die Influenz im Teller gesammelt hat, auf den Stab. Die restliche Ladung auf dem Stab hält den Elektronenmangel in den Zeigern fest, die Zeiger stoßen sich weiter ab. Nimmt man den Stab weg, verteilt sich der Elektronenmangel auf das ganze Elektroskop: Der Ausschlag wird etwas kleiner, bleibt aber erhalten.";
+    }
+  } else if (grounded && near){
+    h = "Erdung während der Influenz";
+    t = R > 0
+      ? "Der negative Stab drängt die Elektronen weg. Über das Erdungskabel fließen sie zur Erde ab. Am Teller bleibt der Elektronenmangel (+) gebunden, die Zeiger werden neutral. Jetzt erst die Erdung lösen und danach den Stab wegnehmen: Das Elektroskop bleibt positiv geladen."
+      : "Der positive Stab zieht Elektronen an. Sie fließen von der Erde über das Erdungskabel auf den Teller. Die Zeiger werden neutral. Jetzt erst die Erdung lösen und danach den Stab wegnehmen: Das Elektroskop bleibt negativ geladen.";
+  } else if (grounded){
+    h = "Elektroskop geerdet";
+    t = Q === 0 && !busy ? "Das Elektroskop ist über das Erdungskabel mit der Erde verbunden und neutral. Die Zeiger hängen senkrecht."
+      : "Über das Erdungskabel gleicht sich die Ladung mit der Erde aus: Überschüssige Elektronen fließen ab bzw. fehlende Elektronen fließen nach. Das Elektroskop wird neutral.";
+  } else if (near){
+    if (Q === 0){
+      h = "Influenz";
+      t = R > 0
+        ? "Der negativ geladene Stab stößt die frei beweglichen Elektronen im Metall ab. Sie wandern nach unten in die Zeiger (Überschuss). Am Teller bleibt ein Elektronenmangel (+). Die Zeiger schlagen aus, obwohl das Elektroskop insgesamt neutral ist und nicht berührt wird. Nimmt man den Stab weg, verteilen sich die Elektronen wieder und der Ausschlag verschwindet."
+        : "Der positiv geladene Stab zieht die frei beweglichen Elektronen im Metall an. Sie sammeln sich im Teller. In den Zeigern bleibt ein Elektronenmangel (+). Die Zeiger schlagen aus, obwohl das Elektroskop insgesamt neutral ist und nicht berührt wird. Nimmt man den Stab weg, verteilen sich die Elektronen wieder und der Ausschlag verschwindet.";
+    } else {
+      h = "Influenz am geladenen Elektroskop";
+      const same = Math.sign(Q) === Math.sign(R);
+      t = `Der ${rodTxt} Stab verschiebt die Elektronen im Elektroskop zusätzlich. ` + (same
+        ? "Stab und Elektroskop sind gleichnamig geladen: Noch mehr Ladung wird in die Zeiger gedrängt, der Ausschlag wird größer."
+        : "Stab und Elektroskop sind ungleichnamig geladen: Die Ladung wird zum Teller gezogen, der Ausschlag wird kleiner.");
+    }
+  } else {
+    if (Q === 0){ h = "Elektroskop neutral"; t = "Überall im Metall gibt es gleich viele Elektronen wie positive Atomrümpfe. Keine Abstoßung, der Zeiger hängt senkrecht."; }
+    else if (Q > 0){ h = "Elektroskop negativ geladen"; t = "Das Elektroskop hat einen Elektronenüberschuss. Die Elektronen stoßen sich gegenseitig ab und verteilen sich auf Teller, Stange und Zeiger. Fester und drehbarer Zeiger sind gleichnamig geladen und stoßen sich ab. Die Ladung bleibt erhalten, weil der Isolator den Abfluss verhindert."; }
+    else { h = "Elektroskop positiv geladen"; t = "Dem Elektroskop fehlen Elektronen. Der Elektronenmangel verteilt sich auf Teller, Stange und Zeiger. Fester und drehbarer Zeiger sind gleichnamig geladen und stoßen sich ab. Die Ladung bleibt erhalten, weil der Isolator den Ausgleich verhindert."; }
+  }
+  const html = `<b>${h}</b>${t}`;
+  if (html !== lastExplain){ $("explain").innerHTML = html; lastExplain = html; }
+}
+
+// ---------- Simulation ----------
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+
+  // Stabbewegung
+  if (!dragging){
+    rod.x += (rodTarget.x - rod.x) * Math.min(1, dt*4);
+    rod.y += (rodTarget.y - rod.y) * Math.min(1, dt*4);
+  }
+  clampRod(rod);
+
+  const earthReady = true;
+
+  // Elektronen bewegen
+  if (flowOn){
+    const v = 260 * speed;
+    for (const p of particles) p.s += v*dt / p.len;
+    const done = particles.filter(p => p.s >= 1);
+    particles = particles.filter(p => p.s < 1);
+    for (const p of done) addTo(p.to, 1);
+    spawnClock -= dt;
+    if (spawnClock <= 0){
+      if (earthReady){
+        const m = wantedMoves();
+        for (const [f,t] of m) startMove(f,t);
+      }
+      spawnClock = 0.14 / speed;
+    }
+  } else if (earthReady) {
+    settleInstant();
+  }
+
+  // Zeigerausschlag: Abstoßung durch gleichnamige Ladung der Zeiger
+  const target = 50 * Math.PI/180 * (1 - Math.exp(-Math.abs(bot)/5));
+  omega += ((target - theta) * 30 - omega * 7) * dt;
+  theta += omega * dt;
+  if (theta < 0){ theta = 0; omega = 0; }
+  $("pointer").setAttribute("transform", `rotate(${theta*180/Math.PI} ${PIVOT.x} ${PIVOT.y})`);
+
+  drawRod();
+  drawCable();
+  drawCharges();
+  drawParticles();
+  drawReadout();
+  explain();
+  requestAnimationFrame(frame);
+}
+
+function clampRod(p){
+  p.x = Math.min(1200, Math.max(120, p.x));
+  p.y = Math.min(640, Math.max(-10, p.y));
+  // Stabspitze bleibt oberhalb des Tellers (nicht durch Teller oder Gehäuse)
+  const c = {x: p.x + 16*(-SA), y: p.y + 16*CA};
+  if (Math.abs(c.x - 360) < 180 && c.y > 147) p.y -= (c.y - 147);
+}
+
+// ---------- Bedienung ----------
+function svgPoint(evt){
+  const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+let grab = {x:0,y:0};
+$("rod").addEventListener("pointerdown", e => {
+  dragging = true; const p = svgPoint(e); grab = {x:p.x - rod.x, y:p.y - rod.y};
+  $("rod").setPointerCapture(e.pointerId); $("rod").style.cursor = "grabbing";
+});
+$("rod").addEventListener("pointermove", e => {
+  if (!dragging) return;
+  const p = svgPoint(e); rod.x = p.x - grab.x; rod.y = p.y - grab.y; clampRod(rod);
+  rodTarget = {x:rod.x, y:rod.y};
+});
+$("plug").addEventListener("pointerdown", e => {
+  plugDrag = true; const p = svgPoint(e); grab = {x:p.x - plug.x, y:p.y - plug.y};
+  $("plug").setPointerCapture(e.pointerId); $("plug").style.cursor = "grabbing";
+});
+$("plug").addEventListener("pointermove", e => {
+  if (!plugDrag) return;
+  const p = svgPoint(e);
+  plug.x = Math.min(890, Math.max(10, p.x - grab.x)); plug.y = Math.min(660, Math.max(-30, p.y - grab.y));
+});
+const endPlug = () => {
+  plugDrag = false; $("plug").style.cursor = "grab";
+  // in der Nähe des Tellers einrasten
+  if (Math.abs(plug.x - 360) < 80 && Math.abs(plug.y - 150) < 24){
+    plug.x = Math.min(426, Math.max(294, plug.x)); plug.y = 157;
+  }
+};
+$("plug").addEventListener("pointerup", endPlug);
+$("plug").addEventListener("pointercancel", endPlug);
+const endDrag = () => { dragging = false; $("rod").style.cursor = "grab"; };
+$("rod").addEventListener("pointerup", endDrag);
+$("rod").addEventListener("pointercancel", endDrag);
+
+const PRESET = {near:{x:320,y:80}, touch:{x:330,y:140}, away:{x:720,y:90}};
+$("btnNear").onclick = () => rodTarget = {...PRESET.near};
+$("btnTouch").onclick = () => rodTarget = {...PRESET.touch};
+$("btnAway").onclick = () => rodTarget = {...PRESET.away};
+
+function setRod(sign){
+  rodSign = sign; R = sign*RUB;
+  $("btnNeg").classList.toggle("on", sign > 0);
+  $("btnPos").classList.toggle("on", sign < 0);
+  particles = particles.filter(p => p.to !== "rod");
+  buildRod();
+}
+$("btnNeg").onclick = () => setRod(1);
+$("btnPos").onclick = () => setRod(-1);
+$("btnRub").onclick = () => setRod(rodSign);
+
+$("swInfl").onchange = e => influenceOn = e.target.checked;
+$("btnDischarge").onclick = () => {
+  particles = particles.filter(p => p.to === "rod");
+  top = 0; bot = 0;
+};
+$("btnReset").onclick = () => {
+  particles = []; top = 0; bot = 0; theta = 0; omega = 0;
+  plug.x = PLUG_REST.x; plug.y = PLUG_REST.y;
+  rod.x = PRESET.away.x; rod.y = PRESET.away.y; rodTarget = {...PRESET.away};
+  setRod(1);
+};
+$("swFlow").onchange = e => { flowOn = e.target.checked; if (!flowOn) settleInstant(); };
+$("swCharges").onchange = e => chargesOn = e.target.checked;
+function setMode(all){
+  allMode = all;
+  $("btnAll").classList.toggle("on", all); $("btnEff").classList.toggle("on", !all);
+  $("legAll").style.display = all ? "" : "none"; $("legEff").style.display = all ? "none" : "";
+  $("noteAll").style.display = all ? "" : "none"; $("noteEff").style.display = all ? "none" : "";
+}
+$("btnAll").onclick = () => setMode(true);
+$("btnEff").onclick = () => setMode(false);
+$("speed").oninput = e => { speed = +e.target.value; $("speedVal").textContent = speed.toFixed(1).replace(".", ",") + "×"; };
+$("theme").onclick = () => {
+  const dark = document.documentElement.dataset.theme !== "light";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  $("theme").textContent = dark ? "Dunkel" : "Hell";
+};
+$("btnPanel").onclick = () => {
+  const off = $("main").classList.toggle("nopanel");
+  $("btnPanel").classList.toggle("on", !off);
+};
+
+buildRod();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

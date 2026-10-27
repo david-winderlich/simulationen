@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Äußerer Photoeffekt - Lehrerversion</title>
+<style>
+:root{
+  --bg:#f6f6f3; --panel:#ffffff; --panel2:#f0f0eb; --ink:#1b1f24; --muted:#5b6470; --line:#d8d8d0; --accent:#1f6fd1;
+  --stage:#ffffff; --wire:#333; --glass:rgba(90,150,180,.08); --glassedge:#7d9cab; --metal:#9aa3ad; --metaledge:#555;
+  --pos:#d33b3b; --neg:#2d6be0; --el:#1f6fd1; --dev:#eef0f2; --devedge:#8a939c; --track:#c9ccd2; --symfill:#fff;
+  --lcd:#e9f3e4; --lcdink:#1d3b12; --grid:#e6e6df; --axis:#5b6470; --hintbg:rgba(255,255,255,.9);
+}
+:root[data-theme="dark"]{
+  --bg:#0d1016; --panel:#141922; --panel2:#1c222d; --ink:#e8ecf2; --muted:#98a2b0; --line:#2a3240; --accent:#5aa9f0;
+  --stage:#0d1016; --wire:#b7c0cc; --glass:rgba(120,200,230,.06); --glassedge:#5f8494; --metal:#8c96a3; --metaledge:#05070a;
+  --pos:#ff6b6b; --neg:#5b93ff; --el:#7cc4ff; --dev:#1c222d; --devedge:#3d4757; --track:#3a4352; --symfill:#141922;
+  --lcd:#13241a; --lcdink:#9df59a; --grid:#222a36; --axis:#98a2b0; --hintbg:rgba(13,16,22,.9);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);height:52px;background:var(--panel)}
+header h1{font-size:18px;margin:0;font-weight:650;white-space:nowrap}
+header .sub{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .sp{flex:1}
+button{white-space:nowrap;font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default;border-color:var(--line)}
+main{display:flex;height:calc(100vh - 52px)}
+main > aside{flex:none;width:380px}
+main > #diag{width:400px}
+main > #tabPanel{width:380px}
+main.nopanel #settings, main:not(.diag) #diag, main:not(.tab) #tabPanel{display:none}
+.stage{position:relative;min-height:420px;background:var(--stage);flex:1;min-width:0}
+#svg{display:block;width:100%;height:100%;touch-action:none;user-select:none}
+aside{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px 16px 24px}
+section{margin-bottom:16px}
+h2{font-size:13px;letter-spacing:.02em;color:var(--muted);margin:0 0 6px;font-weight:600}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.btns button{flex:1 1 auto}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}
+.val{font-variant-numeric:tabular-nums;font-weight:650}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0;cursor:pointer}
+.switch input{display:none}
+.switch .tg{position:relative;width:42px;height:24px;border-radius:12px;background:#c9ccd2;flex:none;transition:background .15s}
+.switch .tg::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:left .15s}
+.switch input:checked + .tg{background:var(--accent)}
+.switch input:checked + .tg::after{left:21px}
+.explain{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.explain b{display:block;margin-bottom:4px}
+.exBox{position:absolute;right:12px;bottom:12px;width:min(360px,calc(100% - 24px));pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.exBox > *{pointer-events:auto}
+.exBox .btns button{flex:none}
+.exBox .explain{display:none;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.exBox.open .explain{display:block}
+.chev{margin-left:4px;vertical-align:1px;transition:transform .15s}
+.exBox.open .chev{transform:rotate(180deg)}
+#svg .mat{cursor:pointer}
+#svg .mat:focus{outline:none}
+#svg .mat:focus-visible rect{stroke:var(--accent);stroke-width:3}
+.small{font-size:12px;color:var(--muted)}
+.read{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.read div{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.read small{display:block;color:var(--muted);font-size:11.5px}
+.read b{font-variant-numeric:tabular-nums}
+.chart{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px 6px 2px;margin-top:6px}
+.chart .t{font-size:12.5px;font-weight:600;margin:0 4px 2px}
+.info{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.info:empty{display:none}
+.info button{display:flex;justify-content:space-between;align-items:center;width:100%;font-size:26px;font-weight:650;padding:6px 14px;font-variant-numeric:tabular-nums;border-radius:10px}
+#tabPanel .info button{font-size:21px;padding:6px 10px}
+.info button span{text-align:left}
+.info button .x{margin-left:12px;color:var(--muted);font-size:22px;font-weight:700}
+.lines{margin-top:10px}
+.lines > button{width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.lines.open > button{background:var(--accent);color:#fff;border-color:var(--accent)}
+.lines.open .chev{transform:rotate(180deg)}
+.lineList{display:none;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.lines.open .lineList{display:grid}
+.lineList button{text-align:left;display:flex;justify-content:space-between;gap:6px}
+.lineList button small{opacity:.75;font-variant-numeric:tabular-nums}
+.lineList button.sel{background:var(--track);border-color:var(--muted)}
+.lineList button{font-weight:600}
+.chart canvas{display:block;width:100%;height:200px}
+.mt{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:15px;margin-top:10px}
+.mt th,.mt td{text-align:right;padding:5px 6px;border-bottom:1px solid var(--line)}
+.mt th{color:var(--muted);font-weight:600;font-size:12.5px}
+.mt td.x{width:1%;padding:2px}
+.mt td.x button{padding:0 7px;color:var(--muted);font-weight:700}
+.chart .t{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.maxBtn{flex:none;padding:2px 4px;line-height:0;border-radius:6px}
+.maxBtn svg{display:block}
+.big{position:absolute;inset:0;display:none;flex-direction:column;padding:14px 16px;background:var(--stage)}
+.stage.max .big{display:flex}
+.stage.max #svg, .stage.max .exBox{visibility:hidden}
+.big .t{display:flex;justify-content:space-between;align-items:center;font-size:20px;font-weight:650;margin-bottom:8px}
+#bigHolder{flex:1;min-height:0}
+#bigHolder canvas{display:block;width:100%;height:100%}
+.ctl{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-top:6px}
+.ctl .row{margin:8px 0 0}
+.ctl .rr{display:flex;align-items:center;gap:6px}
+.ctl .rr button{padding:0 8px;font-weight:700}
+.ctl input[type=range]{flex:1;accent-color:var(--accent)}
+#svg .sl:focus{outline:none}
+#svg .sl:focus-visible .thumb{stroke:var(--accent);stroke-width:4}
+@media (max-width:820px){
+  main{flex-direction:column;height:auto}
+  main > aside, main > #diag, main > #tabPanel{width:auto}
+  .stage{height:70vh}
+  aside{border-left:none;border-top:1px solid var(--line)}
+  header .sub{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Äußerer Photoeffekt <span style="font-weight:400">- Lehrerversion</span></h1>
+  <span class="sp"></span>
+  <button id="btnGf" title="Spannungsquelle und Voltmeter ein- oder ausblenden">Gegenfeldmethode</button>
+  <button id="btnTab" title="Wertetabelle ein- oder ausblenden">Wertetabelle</button>
+  <button id="btnDiag" title="Diagramme neben der Simulation ein- oder ausblenden">Diagramme</button>
+  <button id="btnPanel" title="Werte rechts ein- oder ausblenden">Werte anzeigen</button>
+  <button id="theme" title="Hell/Dunkel umschalten">Hell</button>
+</header>
+<main id="main" class="nopanel">
+  <div class="stage">
+    <svg id="svg" viewBox="0 0 980 750" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="spec" x1="0" x2="1" y1="0" y2="0"></linearGradient>
+        <radialGradient id="eGlow">
+          <stop offset="0" stop-color="#3d9bff" stop-opacity=".6"/>
+          <stop offset="1" stop-color="#3d9bff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Leitungen -->
+      <g id="wires" fill="none" style="stroke:var(--wire)" stroke-width="3" stroke-linejoin="round"></g>
+
+      <!-- Lichtstrahl -->
+      <polygon id="beam" points=""/>
+
+      <!-- Photozelle -->
+      <rect x="230" y="170" width="520" height="210" rx="30" style="fill:var(--glass);stroke:var(--glassedge)" stroke-width="3"/>
+      <text x="490" y="198" text-anchor="middle" font-size="13" style="fill:var(--muted)">Vakuum</text>
+      <rect id="cath" x="272" y="195" width="14" height="160" rx="2" stroke-width="1.5"/>
+      <rect id="anode" x="694" y="195" width="14" height="160" rx="2" stroke-width="1.5"/>
+      <g id="plateSigns" font-size="15" font-weight="700" text-anchor="middle"></g>
+      <text x="279" y="373" text-anchor="middle" font-size="13" style="fill:var(--ink)">Kathode</text>
+      <text x="701" y="373" text-anchor="middle" font-size="13" style="fill:var(--ink)">Anode</text>
+      <!-- Kathodenmaterial -->
+      <g id="matPanel">
+        <g id="matHead" class="mat" tabindex="0" role="button" aria-expanded="false">
+          <rect x="8" y="150" width="214" height="30" rx="8" stroke-width="1"/>
+          <text id="matHeadT" x="17" y="169.5" font-size="12.5"></text>
+          <path id="matArrow" d="M-5,-2.5 L0,2.5 L5,-2.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="translate(208,165)"/>
+        </g>
+        <g id="matList" style="display:none">
+          <rect x="8" y="186" width="214" height="432" rx="12" stroke-width="2" style="fill:var(--dev);stroke:var(--devedge)"/>
+          <g id="mats"></g>
+        </g>
+      </g>
+
+      <g id="photons"></g>
+      <g id="electrons"></g>
+
+      <!-- Messgeräte -->
+      <g id="ammeter">
+        <circle cx="701" cy="455" r="24" stroke-width="3" style="fill:var(--symfill);stroke:var(--wire)"/>
+        <text x="701" y="463" text-anchor="middle" font-size="22" style="fill:var(--ink)">A</text>
+        <rect x="732" y="440" width="98" height="30" rx="5" stroke-width="1.5" style="fill:var(--lcd);stroke:var(--devedge)"/>
+        <text id="aVal" x="822" y="461" text-anchor="end" font-size="16" font-family="ui-monospace,Consolas,monospace" style="fill:var(--lcdink)"></text>
+      </g>
+      <g id="voltmeter">
+        <circle cx="490" cy="540" r="24" stroke-width="3" style="fill:var(--symfill);stroke:var(--wire)"/>
+        <text x="490" y="548" text-anchor="middle" font-size="22" style="fill:var(--ink)">V</text>
+        <rect x="441" y="486" width="98" height="28" rx="5" stroke-width="1.5" style="fill:var(--lcd);stroke:var(--devedge)"/>
+        <text id="vVal" x="531" y="506" text-anchor="end" font-size="16" font-family="ui-monospace,Consolas,monospace" style="fill:var(--lcdink)"></text>
+        <circle cx="279" cy="540" r="5.5" style="fill:var(--wire)"/>
+        <circle cx="701" cy="540" r="5.5" style="fill:var(--wire)"/>
+      </g>
+
+      <!-- Spannungsquelle -->
+      <g id="source">
+        <rect x="335" y="582" width="310" height="164" rx="12" stroke-width="2" style="fill:var(--dev);stroke:var(--devedge)"/>
+        <text x="490" y="598" text-anchor="middle" font-size="12" style="fill:var(--muted)">Spannungsquelle</text>
+        <line x1="335" y1="630" x2="482" y2="630" stroke-width="3" style="stroke:var(--wire)"/>
+        <line x1="498" y1="630" x2="645" y2="630" stroke-width="3" style="stroke:var(--wire)"/>
+        <g id="batt"></g>
+        <g id="uSlider"></g>
+      </g>
+
+      <!-- Lampe -->
+      <g id="lampArm" style="stroke:var(--devedge)" stroke-width="6" stroke-linecap="round">
+        <line x1="552" y1="56" x2="610" y2="56"/>
+      </g>
+      <g id="lamp" transform="translate(530,75) rotate(138.3)">
+        <path d="M-34,-20 L8,-20 L22,-30 L22,30 L8,20 L-34,20 Z" stroke-width="2" style="fill:var(--dev);stroke:var(--devedge)"/>
+        <rect id="lampGlass" x="21" y="-28" width="6" height="56" rx="2"/>
+      </g>
+      <g id="lampPanel">
+        <rect x="610" y="12" width="360" height="148" rx="12" stroke-width="2" style="fill:var(--dev);stroke:var(--devedge)"/>
+        <text x="626" y="32" font-size="12" style="fill:var(--muted)">Lichtquelle</text>
+        <g id="phSwitch" class="mat" tabindex="0" role="switch" aria-label="Photonen anzeigen">
+          <rect x="770" y="18" width="190" height="22" fill="transparent"/>
+          <text x="900" y="33" text-anchor="end" font-size="12.5" style="fill:var(--ink)">Photonen anzeigen</text>
+          <rect id="phTrack" x="910" y="19" width="36" height="20" rx="10"/>
+          <circle id="phKnob" cy="29" r="7.5" fill="#fff"/>
+        </g>
+        <g id="wlSlider"></g>
+        <g id="inSlider"></g>
+      </g>
+    </svg>
+    <div class="big" id="big">
+      <div class="t"><span id="bigTitle"></span><button id="btnMin" title="Diagramm verkleinern"><svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 5.5h-4v-4M1.5 8.5h4v4M8.5 5.5 13 1M5.5 8.5 1 13"/></svg></button></div>
+      <div id="bigHolder"></div>
+    </div>
+    <div class="exBox" id="exBox">
+      <div class="explain" id="explain"></div>
+      <div class="btns"><button id="btnReset">Alles zurücksetzen</button>
+      <button id="btnEx" title="Erklärung ein- oder ausblenden">Was gerade passiert <svg class="chev" width="12" height="8" viewBox="-6 -4 12 8"><path d="M-5,2.5 L0,-2.5 L5,2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    </div>
+  </div>
+
+  <aside id="tabPanel">
+    <section>
+      <h2>Wertetabelle</h2>
+      <div class="btns">
+        <button id="btnStore">Messwert aufnehmen</button>
+        <button id="btnClear">Tabelle leeren</button>
+      </div>
+      <table class="mt" id="mt"></table>
+      <p class="small" id="mtHint">Noch keine Messwerte. Stelle Wellenlänge und Spannung ein und nimm den aktuellen Wert auf.</p>
+      <div class="chart" id="box4"><div class="t">Max. Bewegungsenergie der Elektronen über Frequenz f<button class="maxBtn" data-c="c4" title="Diagramm vergrößern"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5h4v4M5.5 12.5h-4v-4M12.5 1.5 8 6M1.5 12.5 6 8"/></svg></button></div><canvas id="c4"></canvas></div>
+      <div class="btns" style="margin-top:8px"><button id="btnFit" title="Ab drei Messpunkten mit Gegenspannung">Ausgleichsgerade einzeichnen</button><button id="btnSlope" title="Steigung der Ausgleichsgeraden mit Fehler" style="display:none">Anstieg einblenden</button></div>
+      <div class="info" id="c4info"></div>
+    </section>
+  </aside>
+
+  <aside id="diag">
+    <section>
+      <h2>Diagramme</h2>
+      <div class="chart" id="box1"><div class="t">Stromstärke I über Spannung U<button class="maxBtn" data-c="c1" title="Diagramm vergrößern"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5h4v4M5.5 12.5h-4v-4M12.5 1.5 8 6M1.5 12.5 6 8"/></svg></button></div><canvas id="c1"></canvas></div>
+      <div class="chart" id="box3"><div class="t">Max. Bewegungsenergie der Elektronen über Frequenz f<button class="maxBtn" data-c="c3" title="Diagramm vergrößern"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5h4v4M5.5 12.5h-4v-4M12.5 1.5 8 6M1.5 12.5 6 8"/></svg></button></div><canvas id="c3"></canvas></div>
+      <div class="ctl" id="ctlBox" style="display:none">
+        <div class="row"><span>Wellenlänge λ</span><span class="val" id="cWlV"></span></div>
+        <div class="rr"><button data-d="wl" data-s="-1">−</button><input type="range" id="cWl" min="200" max="850" step="1"><button data-d="wl" data-s="1">+</button></div>
+        <div class="row"><span>Intensität</span><span class="val" id="cInV"></span></div>
+        <div class="rr"><button data-d="I" data-s="-1">−</button><input type="range" id="cIn" min="0" max="100" step="1"><button data-d="I" data-s="1">+</button></div>
+        <div class="row"><span>Spannung U</span><span class="val" id="cUV"></span></div>
+        <div class="rr"><button data-d="U" data-s="-1">−</button><input type="range" id="cU" min="-10" max="10" step="0.01"><button data-d="U" data-s="1">+</button></div>
+      </div>
+      <div class="info" id="c3info"></div>
+      <div class="lines" id="linesBox">
+        <button id="btnLines" aria-expanded="false">Geraden einblenden <svg class="chev" width="12" height="8" viewBox="-6 -4 12 8"><path d="M-5,-2.5 L0,2.5 L5,-2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div class="lineList" id="lineList"></div>
+      </div>
+    </section>
+
+  </aside>
+
+  <aside id="settings">
+    <section>
+      <div class="read" id="read"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const svg = $("svg");
+function mk(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const fm = (n, k=2) => (Math.abs(n) < 0.5*Math.pow(10,-k) ? 0 : n).toFixed(k).replace(".", ",").replace("-", "−");
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------- Physik ----------
+const HC = 1239.84;          // h·c in eV·nm
+const H_EV = 4.135667e-15;   // h in eV·s
+const MATS = [
+  // c: Farbe [dunkel, hell], angelehnt an Metallfarbe bzw. Flammenfärbung
+  {n:"Cäsium",    W:1.95, c:["#e8cf8a","#a88c3a"]},   // blassgoldenes Metall
+  {n:"Kalium",    W:2.25, c:["#c48ef2","#8a4fc4"]},   // violette Flammenfärbung
+  {n:"Natrium",   W:2.28, c:["#ff9f2e","#d9770a"]},   // gelb-orange Natriumdampflampe
+  {n:"Barium",    W:2.52, c:["#a8dc5c","#5e9a1e"]},   // fahlgrüne Flammenfärbung
+  {n:"Calcium",   W:2.87, c:["#f0645a","#c8352b"]},   // ziegelrote Flammenfärbung
+  {n:"Lithium",   W:2.90, c:["#ff5c9a","#c41e5e"]},   // karminrote Flammenfärbung
+  {n:"Magnesium", W:3.66, c:["#f2f2f2","#555555"]},   // grellweiß brennend
+  {n:"Zink",      W:3.95, c:["#4fd1a5","#1f9470"]},   // blaugrüne Flammenfärbung
+  {n:"Cadmium",   W:4.08, c:["#f2ec4a","#9c9300"]},   // Cadmiumgelb (Pigment)
+  {n:"Aluminium", W:4.20, c:["#d0d9e2","#6f7a85"]},   // hellsilbern
+  {n:"Zinn",      W:4.42, c:["#9fbfae","#4f7a65"]},   // zinngrau mit Grünstich
+  {n:"Wolfram",   W:4.55, c:["#8c8c9c","#4a4a58"]},   // dunkelgrau
+  {n:"Kupfer",    W:4.65, c:["#d9834f","#a8552a"]},   // kupferrot
+  {n:"Eisen",     W:4.67, c:["#b0603c","#8a3e1e"]},   // rostbraun
+  {n:"Gold",      W:5.47, c:["#ffcf1a","#c99a00"]},   // goldgelb
+  {n:"Platin",    W:5.64, c:["#a9b4c4","#7a8597"]},   // silbergrau
+];
+const matCol = i => MATS[i].c[document.documentElement.dataset.theme === "light" ? 1 : 0];
+const ISAT = 50;             // Sättigungsstrom in nA bei 100 % Intensität
+const UMAX = 10;
+
+const S = {m:2, wl:500, I:50, U:0, gf:false, ph:false};
+let D = {};
+function derive(){
+  const E = HC / S.wl, W = MATS[S.m].W, Ek = Math.max(0, E - W);
+  D = {E, W, Ek, f: E / H_EV, emit: S.I > 0 && Ek > 0, l0: HC / W};
+}
+const U = () => S.gf ? S.U : 0;
+// Anteil der Elektronen mit E > e·|U| bei Verteilung E = Ek·sqrt(r)  ->  1 − (|U|/Ek)²
+function current(u, inten = S.I){
+  if (!(inten > 0 && D.Ek > 0)) return 0;
+  const Is = ISAT * inten / 100;
+  return u >= 0 ? Is : Is * Math.max(0, 1 - (u / D.Ek) ** 2);
+}
+
+// ---------- Farbe des Lichts ----------
+function rgb(w){
+  let r=0,g=0,b=0;
+  if (w < 380) return [170,140,255];
+  if (w > 750) return [190,70,70];
+  if (w < 440){ r=(440-w)/60; b=1 }
+  else if (w < 490){ g=(w-440)/50; b=1 }
+  else if (w < 510){ g=1; b=(510-w)/20 }
+  else if (w < 580){ r=(w-510)/70; g=1 }
+  else if (w < 645){ r=1; g=(645-w)/65 }
+  else r=1;
+  let f = 1;
+  if (w < 420) f = .3 + .7*(w-380)/40; else if (w > 700) f = .3 + .7*(750-w)/50;
+  return [r,g,b].map(v => Math.round(255 * Math.pow(v*f, .8)));
+}
+const col = (w, a=1) => { const c = rgb(w); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; };
+const invisible = w => w < 380 || w > 750;
+
+// Spektrum für den Wellenlängen-Regler
+{
+  const g = $("spec");
+  for (let w = 200; w <= 850; w += 10){
+    const c = (w < 380) ? "#6f5aa8" : (w > 750) ? "#7a3434" : col(w);
+    mk("stop", {offset: ((w-200)/650).toFixed(4), "stop-color": c}, g);
+  }
+}
+
+// ---------- SVG-Schieberegler ----------
+function svgPoint(evt){
+  const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+function slider(parent, o){
+  const g = mk("g", {class:"sl", tabindex:0, role:"slider", "aria-label":o.label, "aria-valuemin":o.min, "aria-valuemax":o.max}, parent);
+  mk("text", {x:o.x, y:o.y-14, "font-size":13, style:"fill:var(--ink)"}, g).textContent = o.label;
+  const vt = mk("text", {x:o.x+o.w, y:o.y-14, "font-size":13, "font-weight":650, "text-anchor":"end", style:"fill:var(--ink);font-variant-numeric:tabular-nums"}, g);
+  const hit = mk("rect", {x:o.x-10, y:o.y-10, width:o.w+20, height:20, fill:"transparent", style:"cursor:pointer"}, g);
+  mk("rect", {x:o.x, y:o.y-4, width:o.w, height:8, rx:4, fill:o.fill || "var(--track)", style:"pointer-events:none"}, g);
+  if (o.ticks) for (const t of o.ticks){
+    const tx = o.x + (t.v - o.min)/(o.max - o.min)*o.w;
+    mk("line", {x1:tx, x2:tx, y1:o.y+7, y2:o.y+12, "stroke-width":1.5, style:"stroke:var(--muted)"}, g);
+    mk("text", {x:tx, y:o.y+24, "font-size":11, "text-anchor":t.a || "middle", style:"fill:var(--muted)"}, g).textContent = t.l;
+  }
+  const th = mk("circle", {class:"thumb", cx:o.x, cy:o.y, r:10, "stroke-width":2.5, style:"fill:var(--panel);stroke:var(--ink);cursor:grab"}, g);
+  let val = o.value;
+  const q = v => Math.min(o.max, Math.max(o.min, Math.round(v / o.step) * o.step));
+  function set(v, fire){
+    val = q(v);
+    th.setAttribute("cx", o.x + (val - o.min)/(o.max - o.min)*o.w);
+    vt.textContent = o.fmt(val);
+    g.setAttribute("aria-valuenow", val); g.setAttribute("aria-valuetext", o.fmt(val));
+    if (fire) o.onChange(val);
+  }
+  const fromEvt = e => o.min + (svgPoint(e).x - o.x)/o.w*(o.max - o.min);
+  let drag = false;
+  g.addEventListener("pointerdown", e => {
+    if (e.target.closest(".step")) return;
+    drag = true; g.setPointerCapture(e.pointerId); th.style.cursor = "grabbing"; set(fromEvt(e), true); g.focus(); e.preventDefault();
+  });
+  g.addEventListener("pointermove", e => { if (drag) set(fromEvt(e), true); });
+  const end = () => { drag = false; th.style.cursor = "grab"; };
+  g.addEventListener("pointerup", end); g.addEventListener("pointercancel", end);
+  g.addEventListener("keydown", e => {
+    const big = (o.max - o.min) / 20;
+    const d = {ArrowLeft:-o.step, ArrowDown:-o.step, ArrowRight:o.step, ArrowUp:o.step, PageDown:-big, PageUp:big}[e.key];
+    if (d !== undefined){ set(val + d * (e.shiftKey ? 10 : 1), true); e.preventDefault(); }
+    else if (e.key === "Home"){ set(o.min, true); e.preventDefault(); }
+    else if (e.key === "End"){ set(o.max, true); e.preventDefault(); }
+  });
+  // Feinverstellung mit −/+
+  if (o.fine){
+    [[-1, o.x - 28], [1, o.x + o.w + 28]].forEach(([s, cx]) => {
+      const b = mk("g", {class:"step", style:"cursor:pointer"}, g);
+      mk("circle", {cx, cy:o.y, r:11, "stroke-width":1.5, style:"fill:var(--panel2);stroke:var(--devedge)"}, b);
+      mk("text", {x:cx, y:o.y+5, "font-size":16, "font-weight":700, "text-anchor":"middle", style:"fill:var(--ink)"}, b).textContent = s < 0 ? "−" : "+";
+      let t1, t2;
+      const stop = () => { clearTimeout(t1); clearInterval(t2); };
+      b.addEventListener("pointerdown", e => {
+        e.stopPropagation(); e.preventDefault(); set(val + s*o.fine, true);
+        t1 = setTimeout(() => { t2 = setInterval(() => set(val + s*o.fine, true), 60); }, 400);
+      });
+      b.addEventListener("pointerup", stop); b.addEventListener("pointerleave", stop); b.addEventListener("pointercancel", stop);
+    });
+  }
+  set(val, false);
+  return {set: v => set(v, false), get: () => val};
+}
+
+const wlS = slider($("wlSlider"), {x:668, y:66, w:244, min:200, max:850, step:1, fine:1, value:S.wl, label:"Wellenlänge λ",
+  fill:"url(#spec)", fmt: v => v + " nm" + (v < 380 ? " (UV)" : v > 750 ? " (IR)" : ""),
+  ticks:[{v:200,l:"200 nm",a:"start"},{v:380,l:"380"},{v:750,l:"750"}],
+  onChange: v => { S.wl = v; upd(); }});
+const inS = slider($("inSlider"), {x:668, y:132, w:244, min:0, max:100, step:1, fine:1, value:S.I, label:"Intensität",
+  fmt: v => v + " %", onChange: v => { S.I = v; upd(); }});
+const uS = slider($("uSlider"), {x:385, y:708, w:210, min:-UMAX, max:UMAX, step:0.01, fine:0.01, value:S.U, label:"Spannung U",
+  fmt: v => fm(v, 2) + " V",
+  ticks:[{v:-UMAX,l:"Gegenspannung",a:"start"},{v:0,l:"0"},{v:UMAX,l:"Saugspannung",a:"end"}],
+  onChange: v => { S.U = v; upd(); }});
+
+// ---------- Leitungen ----------
+function drawWires(){
+  const w = $("wires"); w.innerHTML = "";
+  // Anode: Platte → Amperemeter → unten; Kathode: Platte → unten
+  mk("polyline", {points:"701,355 701,431"}, w);
+  if (S.gf){
+    mk("polyline", {points:"279,355 279,630 335,630"}, w);
+    mk("polyline", {points:"701,479 701,630 645,630"}, w);
+    mk("polyline", {points:"279,540 466,540"}, w);
+    mk("polyline", {points:"514,540 701,540"}, w);
+  } else {
+    mk("polyline", {points:"279,355 279,630 701,630 701,479"}, w);
+  }
+  $("source").style.display = S.gf ? "" : "none";
+  $("voltmeter").style.display = S.gf ? "" : "none";
+}
+
+function drawBattery(){
+  const g = $("batt"); g.innerHTML = "";
+  const u = U();
+  // rechte Seite hängt an der Anode: U > 0 → rechts Pluspol
+  const rightPlus = u >= 0;
+  const plus = rightPlus ? 498 : 482, minus = rightPlus ? 482 : 498;
+  mk("line", {x1:plus, x2:plus, y1:610, y2:650, "stroke-width":3, style:"stroke:var(--wire)"}, g);
+  mk("line", {x1:minus, x2:minus, y1:620, y2:640, "stroke-width":7, style:"stroke:var(--wire)"}, g);
+  if (Math.abs(u) > 0.005){
+    mk("text", {x:plus, y:670, "font-size":18, "font-weight":700, "text-anchor":"middle", style:"fill:var(--pos)"}, g).textContent = "+";
+    mk("text", {x:minus, y:670, "font-size":18, "font-weight":700, "text-anchor":"middle", style:"fill:var(--neg)"}, g).textContent = "−";
+  }
+}
+
+// Kathode und Anode einfärben (rot positiv, blau negativ)
+function drawPlates(){
+  const u = U(), sg = Math.abs(u) < 0.005 ? 0 : Math.sign(u);
+  const cF = sg > 0 ? "var(--neg)" : sg < 0 ? "var(--pos)" : "var(--metal)";
+  const aF = sg > 0 ? "var(--pos)" : sg < 0 ? "var(--neg)" : "var(--metal)";
+  $("cath").setAttribute("style", `fill:${cF};stroke:var(--metaledge)`);
+  $("anode").setAttribute("style", `fill:${aF};stroke:var(--metaledge)`);
+  const g = $("plateSigns"); g.innerHTML = "";
+  if (sg){
+    const n = Math.min(5, 1 + Math.round(Math.abs(u) / 2.5));
+    for (let i = 0; i < n; i++){
+      const y = 220 + i * (110 / Math.max(1, n-1 || 1)) + (n === 1 ? 55 : 0);
+      mk("text", {x:262, y:y+5, style:`fill:${sg > 0 ? "var(--neg)" : "var(--pos)"}`}, g).textContent = sg > 0 ? "−" : "+";
+      mk("text", {x:718, y:y+5, style:`fill:${sg > 0 ? "var(--pos)" : "var(--neg)"}`}, g).textContent = sg > 0 ? "+" : "−";
+    }
+  }
+}
+
+// Lichtstrahl von der Lampe zur Kathode
+const HIT = {x:288, y1:215, y2:335};
+function drawBeam(){
+  const b = $("beam");
+  const lamp = $("lampGlass");
+  if (S.I > 0){
+    const a = 0.08 + 0.32 * S.I / 100;
+    b.setAttribute("points", `493,70 531,112 ${HIT.x},${HIT.y2} ${HIT.x},${HIT.y1}`);
+    b.setAttribute("fill", col(S.wl, a));
+    if (invisible(S.wl)){ b.setAttribute("stroke", col(S.wl, .7)); b.setAttribute("stroke-dasharray", "6 6"); b.setAttribute("stroke-width", 1.5); }
+    else b.setAttribute("stroke", "none");
+    lamp.setAttribute("fill", invisible(S.wl) ? "#777" : col(S.wl));
+  } else {
+    b.setAttribute("points", "");
+    lamp.setAttribute("fill", "#555");
+  }
+}
+
+// ---------- Bedienfeld ----------
+{
+  const g = $("mats");
+  MATS.forEach((m, i) => {
+    const y = 196 + i*26;
+    const b = mk("g", {class:"mat", tabindex:0, role:"radio"}, g);
+    mk("rect", {x:18, y, width:194, height:22, rx:6, "stroke-width":1}, b);
+    mk("text", {x:27, y:y+15.5, "font-size":13, style:"fill:var(--ink)"}, b).textContent = m.n;
+    mk("text", {x:204, y:y+15.5, "font-size":11.5, "text-anchor":"end", style:"fill:var(--muted)"}, b).textContent = m.hidden ? "? eV" : fm(m.W) + " eV";
+    const pick = () => { S.m = i; electrons = []; upd(); };
+    b.addEventListener("click", pick);
+    b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ pick(); e.preventDefault(); } });
+  });
+}
+let matOpen = false;
+const toggleMat = () => {
+  matOpen = !matOpen;
+  $("matList").style.display = matOpen ? "" : "none";
+  $("matHead").setAttribute("aria-expanded", matOpen);
+  upd();
+};
+$("matHead").addEventListener("click", toggleMat);
+$("matHead").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ toggleMat(); e.preventDefault(); } });
+const togglePh = () => { S.ph = !S.ph; upd(); };
+$("phSwitch").addEventListener("click", togglePh);
+$("phSwitch").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ togglePh(); e.preventDefault(); } });
+$("btnGf").onclick = () => {
+  S.gf = !S.gf;
+  if (!S.gf){ restoreMax(); $("main").classList.remove("diag", "tab"); $("btnDiag").classList.remove("on"); $("btnTab").classList.remove("on"); }
+  upd(); charts();
+};
+$("btnEx").onclick = () => { $("btnEx").classList.toggle("on", $("exBox").classList.toggle("open")); };
+
+$("btnReset").onclick = () => {
+  Object.assign(S, {m:2, wl:500, I:50, U:0, ph:false});
+  wlS.set(S.wl); inS.set(S.I); uS.set(S.U);
+  electrons = []; photons = []; upd();
+};
+
+function readouts(){
+  const r = $("read");
+  const hid = MATS[S.m].hidden;
+  const cells = [
+    ["Frequenz f", fm(D.f/1e14) + "·10¹⁴ Hz"],
+    ["Photonenenergie h·f", fm(D.E) + " eV"],
+    ["Austrittsarbeit W<sub>A</sub>", hid ? "?" : fm(D.W) + " eV"],
+    ["max. Bewegungsenergie", hid ? "?" : fm(D.Ek) + " eV"],
+    ["Grenzwellenlänge λ<sub>G</sub>", hid ? "?" : Math.round(D.l0) + " nm"],
+    ["Grenzfrequenz f<sub>G</sub>", hid ? "?" : fm(D.W/H_EV/1e14) + "·10¹⁴ Hz"],
+  ];
+  r.innerHTML = cells.map(c => `<div><small>${c[0]}</small><b>${c[1]}</b></div>`).join("");
+}
+
+function explain(){
+  const hid = MATS[S.m].hidden, u = U(), I = current(u);
+  let h, t;
+  if (S.I === 0){ h = "Lampe aus"; t = "Es fällt kein Licht auf die Kathode, also werden keine Elektronen herausgelöst."; }
+  else if (D.Ek === 0){
+    h = "Kein Photoeffekt";
+    t = `Ein Photon hat nur ${fm(D.E)} eV. Das reicht nicht, um ein Elektron aus ${MATS[S.m].n === "Unbekannt" ? "dem Metall" : MATS[S.m].n} zu lösen${hid ? "" : ` (Austrittsarbeit ${fm(D.W)} eV)`}. Auch sehr helles Licht ändert daran nichts, denn jedes Photon gibt seine Energie an genau ein Elektron ab. Verkleinere die Wellenlänge.`;
+  } else {
+    const ek = hid ? "" : ` Die schnellsten Elektronen haben ${fm(D.Ek)} eV Bewegungsenergie (h·f − W<sub>A</sub>).`;
+    if (!S.gf || Math.abs(u) < 0.005){
+      h = "Elektronen werden herausgelöst";
+      t = `Jedes Photon bringt ${fm(D.E)} eV mit und kann ein Elektron aus der Kathode lösen.${ek} Die Elektronen fliegen zur Anode, das Amperemeter zeigt einen Strom. Mehr Intensität bedeutet mehr Elektronen, aber nicht schnellere.`;
+    } else if (u > 0){
+      h = "Saugspannung";
+      t = `Die Anode ist positiv, die Kathode negativ. Das elektrische Feld beschleunigt alle herausgelösten Elektronen zur Anode. Der Strom erreicht den Sättigungswert; er hängt nur von der Intensität ab.`;
+    } else if (I > 0){
+      h = "Gegenspannung";
+      t = `Die Anode ist negativ, die Kathode positiv. Das Gegenfeld bremst die Elektronen ab. Nur Elektronen mit mehr als ${fm(-u)} eV Bewegungsenergie erreichen die Anode, die langsameren kehren um. Der Strom wird kleiner.`;
+    } else {
+      h = "Gegenspannung: kein Strom";
+      t = `Selbst die schnellsten Elektronen kommen gegen das Gegenfeld nicht an und kehren um. Bei der Stoppspannung U<sub>0</sub> gilt: e·U<sub>0</sub> = E<sub>kin,max</sub> = h·f − W<sub>A</sub>.`;
+    }
+  }
+  const html = `<b>${h}</b>${t}`;
+  if (html !== explain.last){ $("explain").innerHTML = html; explain.last = html; }
+}
+
+// ---------- Diagramme ----------
+// Zoom (Mausrad) und Verschieben (linke Maustaste) – nie weiter heraus als die Standardansicht
+const LAY = {L:54, R:10, T:10, B:34, h:200};
+function niceStep(range, n){
+  const raw = Math.max(0.01, range / n), p = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of (p >= 1 ? [1, 2, 2.5, 5, 10] : [1, 2, 5, 10])) if (m*p >= raw - 1e-12) return Math.max(0.01, +(m*p).toFixed(4));
+  return 10*p;
+}
+function decimals(step){
+  for (let d = 0; d < 2; d++){ const q = step*Math.pow(10,d); if (Math.abs(q - Math.round(q)) < 1e-9) return d; }
+  return 2;
+}
+function clampView(v, o){
+  for (const [a, b] of [["x0","x1"], ["y0","y1"]]){
+    const span = Math.min(v[b] - v[a], o[b] - o[a]);
+    if (v[a] < o[a]){ v[a] = o[a]; v[b] = o[a] + span; }
+    if (v[b] > o[b]){ v[b] = o[b]; v[a] = o[b] - span; }
+    v[b] = v[a] + span;
+  }
+}
+function initZoom(cv){
+  const data = e => {
+    const r = cv.getBoundingClientRect(), o = cv._o, v = cv._v;
+    const k = cv._s || 1, W = r.width/k, H = cv._hl || LAY.h;
+    const fx = ((e.clientX - r.left)/k - LAY.L) / (W - LAY.L - LAY.R);
+    const fy = (H - LAY.B - (e.clientY - r.top)/k) / (H - LAY.T - LAY.B);
+    return {fx, fy, x: v.x0 + fx*(v.x1 - v.x0), y: v.y0 + fy*(v.y1 - v.y0)};
+  };
+  cv.addEventListener("wheel", e => {
+    e.preventDefault();
+    const o = cv._o, v = cv._v, d = data(e), k = Math.exp(e.deltaY * 0.0015);
+    const zoom = (a, b, at, def) => {
+      const span = Math.min(def, Math.max(0.05, (v[b] - v[a]) * k));
+      const f = (at - v[a]) / (v[b] - v[a]);
+      v[a] = at - f*span; v[b] = v[a] + span;
+    };
+    zoom("x0", "x1", d.x, o.x1 - o.x0); zoom("y0", "y1", d.y, o.y1 - o.y0);
+    clampView(v, o); charts();
+  }, {passive:false});
+  let drag = null;
+  cv.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    drag = {x:e.clientX, y:e.clientY, v:{...cv._v}}; cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing";
+  });
+  const hitAt = e => {
+    const r = cv.getBoundingClientRect(), k = cv._s || 1, px = (e.clientX - r.left)/k, py = (e.clientY - r.top)/k;
+    return (cv._hits || []).find(h => Math.hypot(h.x - px, h.y - py) < 9);
+  };
+  cv.addEventListener("pointermove", e => {
+    if (!drag){ cv.style.cursor = hitAt(e) ? "pointer" : "grab"; return; }
+    const r = cv.getBoundingClientRect(), v = cv._v, o = cv._o;
+    const k = cv._s || 1, H = cv._hl || LAY.h;
+    const sx = (drag.v.x1 - drag.v.x0) / (r.width/k - LAY.L - LAY.R) / k, sy = (drag.v.y1 - drag.v.y0) / (H - LAY.T - LAY.B) / k;
+    const dx = -(e.clientX - drag.x)*sx, dy = (e.clientY - drag.y)*sy;
+    v.x0 = drag.v.x0 + dx; v.x1 = drag.v.x1 + dx; v.y0 = drag.v.y0 + dy; v.y1 = drag.v.y1 + dy;
+    clampView(v, o); charts();
+  });
+  const end = () => { drag = null; cv.style.cursor = "grab"; };
+  cv.addEventListener("pointerup", e => {
+    if (drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4){
+      const h = hitAt(e); if (h && cv._o.onHit) cv._o.onHit(h.id);
+    }
+    end();
+  }); cv.addEventListener("pointercancel", end);
+  cv.addEventListener("dblclick", () => { cv._v = {x0:cv._o.x0, x1:cv._o.x1, y0:cv._o.y0, y1:cv._o.y1}; charts(); });
+  cv.style.cursor = "grab"; cv.style.touchAction = "none";
+  cv.title = "Mausrad: zoomen · Ziehen: verschieben · Doppelklick: Standardansicht";
+}
+function chart(cv, o){
+  if (!cv._o){ cv._o = o; cv._v = {x0:o.x0, x1:o.x1, y0:o.y0, y1:o.y1}; initZoom(cv); }
+  cv._o = o;
+  const v = cv._v;
+  // vergrößerte Ansicht: alles (Schrift, Linien, Ränder) um den Faktor k größer zeichnen
+  const k = cv.closest("#bigHolder") ? 1.7 : 1;
+  const dpr = window.devicePixelRatio || 1, cw = cv.clientWidth || 340, ch = cv.clientHeight || LAY.h;
+  const w = cw/k, h = ch/k;
+  cv._s = k; cv._hl = h;
+  cv.width = cw*dpr; cv.height = ch*dpr;
+  const c = cv.getContext("2d"); c.setTransform(dpr*k,0,0,dpr*k,0,0);
+  const {L, R, T, B} = LAY;
+  const X = x => L + (x-v.x0)/(v.x1-v.x0)*(w-L-R), Y = y => h-B - (y-v.y0)/(v.y1-v.y0)*(h-T-B);
+  const grid = cssv("--grid"), axis = cssv("--axis");
+  const dx = niceStep(v.x1 - v.x0, (o.x1 - o.x0)/o.dx), dy = niceStep(v.y1 - v.y0, (o.y1 - o.y0)/o.dy);
+  const nx = decimals(dx), ny = decimals(dy);
+  c.font = "11px system-ui"; c.lineWidth = 1;
+  for (let i = Math.ceil(v.x0/dx - 1e-9); i*dx <= v.x1 + 1e-9; i++){
+    const x = i*dx;
+    c.strokeStyle = grid; c.beginPath(); c.moveTo(X(x),T); c.lineTo(X(x),h-B); c.stroke();
+    c.fillStyle = axis; c.textAlign = "center"; c.fillText(fm(x, nx), X(x), h-B+13);
+  }
+  for (let i = Math.ceil(v.y0/dy - 1e-9); i*dy <= v.y1 + 1e-9; i++){
+    const y = i*dy;
+    c.strokeStyle = grid; c.beginPath(); c.moveTo(L,Y(y)); c.lineTo(w-R,Y(y)); c.stroke();
+    c.fillStyle = axis; c.textAlign = "right"; c.fillText(fm(y, ny), L-5, Y(y)+4);
+  }
+  c.strokeStyle = axis; c.beginPath();
+  if (v.x0 <= 0 && v.x1 >= 0){ c.moveTo(X(0),T); c.lineTo(X(0),h-B); }
+  if (v.y0 <= 0 && v.y1 >= 0){ c.moveTo(L,Y(0)); c.lineTo(w-R,Y(0)); }
+  c.stroke();
+  cv._hits = [];
+  c.save(); c.beginPath(); c.rect(L,T,w-L-R,h-T-B); c.clip(); o.draw(c,X,Y,v,cv._hits); c.restore();
+  c.fillStyle = axis; c.textAlign = "center"; c.fillText(o.xl, (L+w-R)/2, h-4);
+  c.save(); c.translate(10,(T+h-B)/2); c.rotate(-Math.PI/2); c.fillText(o.yl,0,0); c.restore();
+}
+function dot(c, x, y, r, fill){ c.fillStyle = fill; c.beginPath(); c.arc(x,y,r,0,7); c.fill(); }
+
+function charts(){
+  const acc = cssv("--accent"), el = cssv("--el"), mut = cssv("--muted"), ink = cssv("--ink");
+  const hid = MATS[S.m].hidden;
+  {
+    chart($("c1"), {x0:-UMAX, x1:UMAX, dx:2, y0:0, y1:ISAT, dy:10, xl:"U in V", yl:"I in nA", draw(c,X,Y,v){
+      c.strokeStyle = acc; c.lineWidth = 2.5; c.beginPath();
+      for (let i = 0; i <= 600; i++){ const u = v.x0 + (v.x1 - v.x0)*i/600; c[i ? "lineTo" : "moveTo"](X(u), Y(current(u))); }
+      c.stroke();
+      if (D.Ek > 0 && D.Ek < UMAX && S.I > 0 && !hid){
+        c.setLineDash([4,4]); c.strokeStyle = mut; c.lineWidth = 1; c.beginPath(); c.moveTo(X(-D.Ek),Y(0)); c.lineTo(X(-D.Ek),Y(ISAT)); c.stroke(); c.setLineDash([]);
+        c.fillStyle = mut; c.textAlign = "left"; c.fillText("−U₀", X(-D.Ek)+3, Y(v.y1)+12);
+      }
+      const u = U(); dot(c, X(u), Y(current(u)), 5, el);
+    }});
+  }
+  {
+    chart($("c3"), {x0:0, x1:15, dx:2, y0:-6, y1:6, dy:2, xl:"f in 10¹⁴ Hz", yl:"E in eV",
+      onHit: id => { marks[id] = !marks[id]; charts(); },
+      draw(c,X,Y,v,hits){
+      if (!hid){
+        const fG = D.W/H_EV/1e14, k = H_EV*1e14;
+        // oberhalb der Grenzfrequenz durchgezogen, darunter gestrichelt bis zur y-Achse
+        // zusätzlich eingeblendete Geraden anderer Metalle (in Materialfarbe)
+        c.font = "600 11px system-ui"; c.textAlign = "right";
+        const labels = draw3.labels = [];
+        for (const i of lineSel){
+          if (i === S.m) continue;
+          const W = MATS[i].W, g = W/H_EV/1e14;
+          c.strokeStyle = c.fillStyle = matCol(i); c.lineWidth = 1.8;
+          c.beginPath(); c.moveTo(X(g), Y(0)); c.lineTo(X(15), Y(k*15 - W)); c.stroke();
+          c.setLineDash([5,4]); c.beginPath(); c.moveTo(X(0), Y(-W)); c.lineTo(X(g), Y(0)); c.stroke(); c.setLineDash([]);
+          const xe = Math.min(v.x1, (v.y1 + W)/k);
+          // Name am Ende der Geraden, entlang der Geraden gedreht
+          const ang = Math.atan2(Y(k*xe - W) - Y(k*(xe-1) - W), X(xe) - X(xe-1));
+          labels.push(() => { c.fillStyle = matCol(i); c.save(); c.translate(X(xe), Y(k*xe - W)); c.rotate(ang); c.fillText(MATS[i].n, -6, -5); c.restore(); });
+        }
+        c.font = "11px system-ui";
+        c.strokeStyle = acc; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(X(fG), Y(0)); c.lineTo(X(15), Y(k*15 - D.W)); c.stroke();
+        c.setLineDash([6,4]); c.beginPath(); c.moveTo(X(0), Y(-D.W)); c.lineTo(X(fG), Y(0)); c.stroke(); c.setLineDash([]);
+        const sub = (t, s, x, y) => { c.fillText(t, x, y); const w = c.measureText(t).width; c.font = "8px system-ui"; c.fillText(s, x + w + 0.5, y + 3); c.font = "11px system-ui"; };
+        c.fillStyle = acc; c.textAlign = "left";
+        sub("−W", "A", X(0)+6, Y(-D.W)+15);
+        sub("f", "G", X(fG)+5, Y(0)+15);
+        for (const [id, x, y] of [["W", 0, -D.W], ["f", fG, 0]]){
+          dot(c, X(x), Y(y), 3.5, acc);
+          if (marks[id]){ c.strokeStyle = acc; c.lineWidth = 1.5; c.beginPath(); c.arc(X(x), Y(y), 6.5, 0, 7); c.stroke(); }
+          hits.push({id, x:X(x), y:Y(y)});
+        }
+      }
+      if (!hid && S.I > 0) dot(c, X(D.f/1e14), Y(D.Ek), 5, el);
+      // Namen der Vergleichsgeraden zuletzt, damit keine Linie darüber liegt
+      c.font = "600 11px system-ui"; c.textAlign = "right";
+      for (const f of (draw3.labels || [])) f();
+      c.font = "11px system-ui";
+    }});
+  }
+  // Messpunkte aus der Wertetabelle: E = e·|U| bei Gegenspannung, ohne fertige Gerade
+  if (!fit()){ fitOn = false; slopeOn = false; }
+  const F = fitOn ? fit() : null;
+  chart($("c4"), {x0:0, x1:15, dx:2, y0:-6, y1:6, dy:2, xl:"f in 10¹⁴ Hz", yl:"E in eV",
+    onHit: id => { marks4[id] = !marks4[id]; charts(); },
+    draw(c,X,Y,v,hits){
+    if (F){
+      // Ausgleichsgerade: oberhalb der Grenzfrequenz durchgezogen, darunter gestrichelt
+      c.strokeStyle = acc; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(X(F.fG), Y(0)); c.lineTo(X(15), Y(F.m*15 + F.b)); c.stroke();
+      c.setLineDash([6,4]); c.beginPath(); c.moveTo(X(0), Y(F.b)); c.lineTo(X(F.fG), Y(0)); c.stroke(); c.setLineDash([]);
+      c.fillStyle = acc; c.textAlign = "left";
+      const sub = (t, s, x, y) => { c.fillText(t, x, y); const w = c.measureText(t).width; c.font = "8px system-ui"; c.fillText(s, x + w + 0.5, y + 3); c.font = "11px system-ui"; };
+      sub("−W", "A", X(0)+6, Y(F.b)+15);
+      sub("f", "G", X(F.fG)+5, Y(0)+15);
+      for (const [id, x, y] of [["W", 0, F.b], ["f", F.fG, 0]]){
+        dot(c, X(x), Y(y), 3.5, acc);
+        if (marks4[id]){ c.strokeStyle = acc; c.lineWidth = 1.5; c.beginPath(); c.arc(X(x), Y(y), 6.5, 0, 7); c.stroke(); }
+        hits.push({id, x:X(x), y:Y(y)});
+      }
+    }
+    for (const r of rows) if (r.U <= 0) dot(c, X(r.f), Y(-r.U), 4.5, el);
+  }});
+  const pm = (val, err, k=2) => fm(val, k) + " ± " + fm(err, k);
+  const it4 = [];
+  if (F){
+    if (marks4.W) it4.push(`<button data-k="W" title="Ausblenden"><span>W<sub>A</sub> = ${pm(F.W, F.sW)} eV</span><span class="x">×</span></button>`);
+    if (marks4.f) it4.push(`<button data-k="f" title="Ausblenden"><span>f<sub>G</sub> = (${pm(F.fG, F.sfG)})·10¹⁴ Hz</span><span class="x">×</span></button>`);
+    // Anstieg in eV/(10¹⁴ Hz) → eV·s (·10⁻¹⁴) und J·s – entspricht dem Planckschen Wirkungsquantum
+    if (slopeOn){
+      const e = 1.602177e-19, hv = F.m*10, shv = F.sm*10, hj = F.m*1e-14*e/1e-34, shj = F.sm*1e-14*e/1e-34;
+      it4.push(`<button data-k="m" title="Ausblenden"><span>Anstieg m<br>= (${pm(hv, shv)})·10⁻¹⁵ eV·s<br>= (${pm(hj, shj)})·10⁻³⁴ J·s</span><span class="x">×</span></button>`);
+    }
+  }
+  const h4 = it4.join("");
+  if ($("c4info").innerHTML !== h4) $("c4info").innerHTML = h4;
+  $("btnFit").disabled = !fit();
+  $("btnFit").classList.toggle("on", !!F);
+  $("btnSlope").style.display = F ? "" : "none";
+  $("btnSlope").classList.toggle("on", slopeOn);
+  const info = $("c3info"), items = [];
+  if (!hid){
+    if (marks.W) items.push(`<button data-k="W" title="Ausblenden"><span>W<sub>A</sub> = ${fm(D.W)} eV</span><span class="x">×</span></button>`);
+    if (marks.f) items.push(`<button data-k="f" title="Ausblenden"><span>f<sub>G</sub> = ${fm(D.W/H_EV/1e14)}·10¹⁴ Hz</span><span class="x">×</span></button>`);
+  }
+  const html = items.join("");
+  if (info.innerHTML !== html) info.innerHTML = html;
+}
+// ---------- Diagramm vergrößern ----------
+let maxed = null;
+function maximize(id){
+  if (maxed) restoreMax();
+  const cv = $(id), box = cv.closest(".chart");
+  maxed = {id, box};
+  $("bigTitle").textContent = box.querySelector(".t").textContent;
+  $("bigHolder").appendChild(cv);
+  box.style.display = "none";
+  box.after($("ctlBox")); $("ctlBox").style.display = "";
+  document.querySelector(".stage").classList.add("max");
+  charts();
+}
+function restoreMax(){
+  if (!maxed) return;
+  maxed.box.appendChild($(maxed.id));
+  maxed.box.style.display = "";
+  $("ctlBox").style.display = "none";
+  document.querySelector(".stage").classList.remove("max");
+  maxed = null;
+  charts();
+}
+document.querySelectorAll(".maxBtn").forEach(b => b.onclick = () => maximize(b.dataset.c));
+$("btnMin").onclick = restoreMax;
+const SETTERS = {
+  wl: v => { S.wl = Math.min(850, Math.max(200, Math.round(v))); wlS.set(S.wl); },
+  I:  v => { S.I = Math.min(100, Math.max(0, Math.round(v))); inS.set(S.I); },
+  U:  v => { S.U = Math.min(UMAX, Math.max(-UMAX, Math.round(v*100)/100)); uS.set(S.U); },
+};
+$("cWl").oninput = e => { SETTERS.wl(+e.target.value); upd(); };
+$("cIn").oninput = e => { SETTERS.I(+e.target.value); upd(); };
+$("cU").oninput  = e => { SETTERS.U(+e.target.value); upd(); };
+$("ctlBox").querySelectorAll("button").forEach(b => b.onclick = () => {
+  const d = b.dataset.d, sg = +b.dataset.s;
+  SETTERS[d](S[d] + sg*(d === "U" ? 0.01 : 1)); upd();
+});
+function syncCtl(){
+  $("cWl").value = S.wl; $("cIn").value = S.I; $("cU").value = S.U;
+  $("cWlV").textContent = S.wl + " nm"; $("cInV").textContent = S.I + " %"; $("cUV").textContent = fm(S.U, 2) + " V";
+}
+
+// ---------- Wertetabelle (nur Tabelle, kein Diagramm) ----------
+let rows = [];
+function table(){
+  $("mtHint").style.display = rows.length ? "none" : "";
+  $("btnClear").disabled = !rows.length;
+  $("mt").innerHTML = !rows.length ? "" :
+    "<tr><th>λ in nm</th><th>f in 10¹⁴ Hz</th><th>U in V</th><th>I in nA</th><th></th></tr>" +
+    rows.map((r,i) => `<tr><td>${r.wl}</td><td>${fm(r.f)}</td><td>${fm(r.U)}</td><td>${fm(r.I,2)}</td><td class="x"><button data-i="${i}" title="Zeile löschen">×</button></td></tr>`).join("");
+}
+// Lineare Regression E = m·f + b über alle Messpunkte mit Gegenspannung
+let fitOn = false;
+const marks4 = {W:false, f:false};
+function fit(){
+  const p = rows.filter(r => r.U <= 0), n = p.length;
+  if (n < 3) return null;
+  const mx = p.reduce((a,r) => a + r.f, 0)/n, my = p.reduce((a,r) => a - r.U, 0)/n;
+  let sxx = 0, sxy = 0, sx2 = 0;
+  for (const r of p){ sxx += (r.f - mx)**2; sxy += (r.f - mx)*(-r.U - my); sx2 += r.f**2; }
+  if (sxx < 1e-9) return null;
+  const m = sxy/sxx, b = my - m*mx;
+  if (m <= 0) return null;
+  const fG = -b/m;
+  let rss = 0; for (const r of p) rss += (-r.U - (m*r.f + b))**2;
+  const s2 = rss/(n - 2), vm = s2/sxx, vb = s2*sx2/(n*sxx), cov = -mx*s2/sxx;
+  const sW = Math.sqrt(vb);
+  const sfG = Math.sqrt(Math.max(0, vb + fG*fG*vm + 2*fG*cov)) / m;
+  return {m, b, W:-b, fG, sW, sfG, sm:Math.sqrt(vm)};
+}
+$("btnFit").onclick = () => { fitOn = !fitOn; if (!fitOn) slopeOn = false; charts(); };
+let slopeOn = false;
+$("btnSlope").onclick = () => { slopeOn = !slopeOn; charts(); };
+$("c4info").onclick = e => { const b = e.target.closest("button"); if (!b) return; if (b.dataset.k === "m") slopeOn = false; else marks4[b.dataset.k] = false; charts(); };
+$("btnStore").onclick = () => {
+  rows.push({m:MATS[S.m].n, wl:S.wl, f:D.f/1e14, U:U(), I:current(U())});
+  table(); charts();
+};
+$("btnClear").onclick = () => { rows = []; table(); charts(); };
+$("mt").onclick = e => { const b = e.target.closest("button"); if (b){ rows.splice(+b.dataset.i, 1); table(); charts(); } };
+$("btnTab").onclick = () => {
+  const on = $("main").classList.toggle("tab");
+  $("btnTab").classList.toggle("on", on);
+  charts();
+};
+table();
+
+const marks = {W:false, f:false};
+const draw3 = {labels: []};
+const lineSel = new Set();
+function lineList(){
+  $("lineList").innerHTML = MATS.map((m,i) => m.hidden ? "" :
+    `<button data-i="${i}" class="${lineSel.has(i) ? "sel" : ""}" style="color:${matCol(i)}${lineSel.has(i) ? ";border-color:" + matCol(i) : ""}"><span>${lineSel.has(i) ? "✓ " : ""}${m.n}${i === S.m ? " (aktuell)" : ""}</span><small>${fm(m.W)} eV</small></button>`).join("");
+}
+$("lineList").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const i = +b.dataset.i; lineSel.has(i) ? lineSel.delete(i) : lineSel.add(i);
+  lineList(); charts();
+};
+$("btnLines").onclick = () => {
+  const open = $("linesBox").classList.toggle("open");
+  $("btnLines").setAttribute("aria-expanded", open);
+};
+$("c3info").onclick = e => { const b = e.target.closest("button"); if (b){ marks[b.dataset.k] = false; charts(); } };
+
+// ---------- Aktualisieren ----------
+function upd(){
+  derive();
+  document.querySelectorAll("#mats .mat").forEach((b,i) => {
+    const on = i === S.m;
+    b.querySelector("rect").setAttribute("style", on ? "fill:var(--accent);stroke:var(--accent)" : "fill:var(--panel2);stroke:var(--line)");
+    b.querySelectorAll("text").forEach((t,k) => t.style.fill = on ? "#fff" : k ? "var(--muted)" : "var(--ink)");
+    b.setAttribute("aria-checked", on);
+  });
+  $("matHead").querySelector("rect").setAttribute("style", matOpen ? "fill:var(--accent);stroke:var(--accent)" : "fill:var(--panel2);stroke:var(--line)");
+  $("matHeadT").setAttribute("style", matOpen ? "fill:#fff" : "fill:var(--ink)");
+  $("matArrow").setAttribute("transform", `translate(208,165) rotate(${matOpen ? 180 : 0})`);
+  $("matArrow").setAttribute("style", matOpen ? "stroke:#fff" : "stroke:var(--ink)");
+  $("matHeadT").textContent = "Kathodenmaterial: " + MATS[S.m].n;
+  $("phTrack").setAttribute("style", S.ph ? "fill:var(--accent)" : "fill:#9aa0a8");
+  $("phKnob").setAttribute("cx", S.ph ? 936 : 920);
+  $("phSwitch").setAttribute("aria-checked", S.ph);
+  $("btnGf").classList.toggle("on", S.gf);
+  $("btnDiag").style.display = S.gf ? "" : "none";
+  $("btnTab").style.display = S.gf ? "" : "none";
+  drawWires(); drawBattery(); drawPlates(); drawBeam();
+  $("aVal").textContent = fm(current(U()), 2) + " nA";
+  $("vVal").textContent = fm(U(), 2) + " V";
+  readouts(); explain(); lineList(); syncCtl(); charts();
+}
+
+// ---------- Animation: Photonen und Elektronen ----------
+const X0 = 290, X1 = 692, K = 0.4;   // K: Zeitskala der Bewegung (Spalt-Längen pro s² je Volt)
+let photons = [], electrons = [], pAcc = 0, eAcc = 0, last = performance.now();
+const PA = {x:512, y:91};   // Austritt aus der Lampe
+function frame(now){
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  const showPh = S.ph;
+
+  // Photonen
+  if (S.I > 0){ pAcc += dt * 30 * S.I/100; while (pAcc >= 1){ pAcc--; photons.push({t:0, k:Math.random()}); } }
+  photons.forEach(p => p.t += dt * 1.1);
+  photons = photons.filter(p => p.t < 1);
+
+  // Elektronen herauslösen
+  if (D.emit){
+    eAcc += dt * 40 * S.I/100;
+    while (eAcc >= 1){
+      eAcc--;
+      if (electrons.length < 400){
+        const E = D.Ek * Math.sqrt(Math.random());
+        electrons.push({s:0, v:Math.sqrt(2*K*E), y:HIT.y1 + 8 + Math.random()*(HIT.y2 - HIT.y1 - 16), vy:(Math.random()-.5)*14, age:0});
+      }
+    }
+  } else eAcc = 0;
+  const u = U();
+  electrons.forEach(e => { e.v += K*u*dt; e.s += e.v*dt; e.y += e.vy*dt; e.age += dt; if (e.y < 205 || e.y > 345) e.vy *= -1; });
+  electrons = electrons.filter(e => e.s >= 0 && e.s <= 1 && e.age < 15);
+
+  // Zeichnen
+  const pg = $("photons"); pg.innerHTML = "";
+  if (showPh && S.I > 0){
+    const c = invisible(S.wl) ? (S.wl < 380 ? "#a78bfa" : "#d06060") : col(S.wl);
+    const ang = Math.atan2(275 - PA.y, HIT.x - PA.x) * 180/Math.PI;
+    const lam = 4 + 10 * (S.wl - 200)/650;    // gezeichnete Wellenlänge der Wellenpakete
+    for (const p of photons){
+      const ty = HIT.y1 + 10 + p.k*(HIT.y2 - HIT.y1 - 20);
+      const x = PA.x + (HIT.x + 4 - PA.x)*p.t, y = PA.y + (ty - PA.y)*p.t;
+      let d = "";
+      for (let i = -12; i <= 12; i++){ const px = i*1.4, py = 4*Math.sin(2*Math.PI*px/lam - now/60); d += (i === -12 ? "M" : "L") + px.toFixed(1) + "," + py.toFixed(1); }
+      mk("path", {d, fill:"none", stroke:c, "stroke-width":2, transform:`translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${ang.toFixed(1)})`}, pg);
+    }
+  }
+  const eg = $("electrons"); eg.innerHTML = "";
+  for (const e of electrons){
+    const x = X0 + e.s*(X1 - X0);
+    mk("circle", {cx:x.toFixed(1), cy:e.y.toFixed(1), r:5, style:"fill:var(--el)"}, eg);
+    mk("line", {x1:(x-2.5).toFixed(1), x2:(x+2.5).toFixed(1), y1:e.y.toFixed(1), y2:e.y.toFixed(1), stroke:"#fff", "stroke-width":1.4}, eg);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- Kopfzeile ----------
+$("theme").onclick = () => {
+  const dark = document.documentElement.dataset.theme !== "light";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  $("theme").textContent = dark ? "Dunkel" : "Hell";
+  lineList(); charts();
+};
+$("btnDiag").onclick = () => {
+  const on = $("main").classList.toggle("diag");
+  $("btnDiag").classList.toggle("on", on);
+  if (!on) restoreMax();
+  charts();
+};
+$("btnPanel").onclick = () => {
+  const off = $("main").classList.toggle("nopanel");
+  $("btnPanel").classList.toggle("on", !off);
+  charts();
+};
+window.addEventListener("resize", charts);
+
+upd();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
