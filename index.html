@@ -54,15 +54,19 @@
     margin: 0 0 12px; font-size: 1.15rem;
     padding-bottom: 6px; border-bottom: 1px solid var(--line);
   }
-  section h2 .nr { color: var(--accent); font-variant-numeric: tabular-nums; }
   section h2 .count { margin-left: auto; color: var(--muted); font-size: .85rem; font-weight: normal; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   a.card {
-    display: block; padding: 14px 16px; text-decoration: none; color: inherit;
+    display: block; overflow: hidden; text-decoration: none; color: inherit;
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
     transition: border-color .15s, transform .15s;
   }
   a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+  a.card .vorschau {
+    display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: left top;
+    border-bottom: 1px solid var(--line); background: var(--badge);
+  }
+  a.card .inhalt { padding: 12px 16px 14px; }
   a.card h3 { margin: 0 0 4px; font-size: 1.02rem; color: var(--accent); }
   a.card p { margin: 0; color: var(--muted); font-size: .92rem; }
   .badges { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -89,6 +93,7 @@
 
 <script>
 // ═══ Themen (wie in Airtable, Feld „Thema“) ═══
+// Die Nummern legen nur die Reihenfolge fest und werden nicht angezeigt.
 const THEMEN = {
   1:  "Gravitationsfeld, elektrisches und magnetisches Feld",
   2:  "Bewegung von geladenen Teilchen in Feldern",
@@ -108,12 +113,11 @@ const THEMEN = {
 // ═══ Simulationen ═══
 // Neue Simulation: Ordner mit index.html anlegen und hier eine Zeile ergänzen.
 // Themen ohne Simulation werden automatisch ausgeblendet.
-// ordner: Unterordner mit index.html   thema: Nummer aus THEMEN   badges: optional
+// ordner: Unterordner mit index.html und vorschau.jpg (ca. 640×400)
+// thema: Nummer aus THEMEN   badges: optional
 const SIMULATIONEN = [
   { ordner: "elektroskop", titel: "Elektroskop", thema: 1,
     text: "Geriebene Stäbe annähern, berühren und wegnehmen: Ladungsverteilung am Elektroskop." },
-  { ordner: "test", titel: "Erde und Mond in 3D", thema: 1, badges: ["Test"],
-    text: "Dreidimensionales Modell von Erde und Mond zum Drehen." },
   { ordner: "lorentzkraft", titel: "Lorentzkraft", thema: 1,
     text: "Kraft auf einen stromdurchflossenen Leiter im Magnetfeld." },
   { ordner: "interferenz", titel: "Interferenz am Doppelspalt", thema: 5,
@@ -148,13 +152,16 @@ function zeichnen() {
     if (!sims.length && !leereZeigen) continue;
     treffer += sims.length;
     html += `<section id="thema-${nr}">
-      <h2><span class="nr">${nr}</span> ${esc(name)}<span class="count">${sims.length || ""}</span></h2>`;
+      <h2>${esc(name)}<span class="count">${sims.length || ""}</span></h2>`;
     if (sims.length) {
       html += `<div class="grid">` + sims.map(s => `
         <a class="card" href="${esc(s.ordner)}/">
+          <img class="vorschau" src="${esc(s.ordner)}/vorschau.jpg" alt="" loading="lazy" onerror="this.remove()">
+          <div class="inhalt">
           <h3>${esc(s.titel)}</h3>
           <p>${esc(s.text || "")}</p>
           ${s.badges ? `<div class="badges">${s.badges.map(b => `<span class="badge">${esc(b)}</span>`).join("")}</div>` : ""}
+          </div>
         </a>`).join("") + `</div>`;
     } else {
       html += `<p class="empty">Noch keine Simulation.</p>`;
