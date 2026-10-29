@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physik-Simulationen</title>
+<meta name="description" content="Interaktive Physik-Simulationen für den Unterricht, nach Themen sortiert.">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1d2330;
+    --muted: #5d6677;
+    --line: #dde1e8;
+    --accent: #2f6fd6;
+    --accent-soft: #e6eefb;
+    --badge: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b;
+      --card: #1b2029;
+      --text: #e7eaf0;
+      --muted: #9aa3b2;
+      --line: #2b323e;
+      --accent: #7aa7f0;
+      --accent-soft: #223149;
+      --badge: #262d38;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px; }
+  header h1 { margin: 0 0 4px; font-size: 1.8rem; }
+  header p { margin: 0; color: var(--muted); }
+  .tools {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin: 24px 0 8px;
+  }
+  .tools input[type="search"] {
+    flex: 1 1 240px; padding: 9px 12px; font: inherit;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--text);
+  }
+  .tools label { color: var(--muted); font-size: .95rem; cursor: pointer; user-select: none; }
+  section { margin-top: 28px; }
+  section h2 {
+    display: flex; align-items: baseline; gap: 10px;
+    margin: 0 0 12px; font-size: 1.15rem;
+    padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  section h2 .nr { color: var(--accent); font-variant-numeric: tabular-nums; }
+  section h2 .count { margin-left: auto; color: var(--muted); font-size: .85rem; font-weight: normal; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  a.card {
+    display: block; padding: 14px 16px; text-decoration: none; color: inherit;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    transition: border-color .15s, transform .15s;
+  }
+  a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+  a.card h3 { margin: 0 0 4px; font-size: 1.02rem; color: var(--accent); }
+  a.card p { margin: 0; color: var(--muted); font-size: .92rem; }
+  .badges { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: var(--badge); color: var(--muted); }
+  .empty { color: var(--muted); font-style: italic; font-size: .92rem; margin: 0; }
+  .none { margin-top: 28px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Physik-Simulationen</h1>
+    <p>Interaktive Simulationen für den Unterricht, nach Themen sortiert.</p>
+  </header>
+
+  <div class="tools">
+    <input type="search" id="suche" placeholder="Simulation suchen …" aria-label="Simulation suchen">
+    <label><input type="checkbox" id="alleThemen"> Auch leere Themen anzeigen</label>
+  </div>
+
+  <main id="liste"></main>
+
+</div>
+
+<script>
+// ═══ Themen (wie in Airtable, Feld „Thema“) ═══
+const THEMEN = {
+  1:  "Gravitationsfeld, elektrisches und magnetisches Feld",
+  2:  "Bewegung von geladenen Teilchen in Feldern",
+  3:  "Elektromagnetische Induktion",
+  4:  "Schwingungen (mech. und elektrom.)",
+  5:  "Wellen (mech. und elektrom.)",
+  6:  "Quantenobjekte",
+  7:  "Atome und Radioaktivität",
+  8:  "Wärmelehre und Druck",
+  9:  "Kraft, Energie, Arbeit und Leistung",
+  10: "Stromkreise",
+  11: "Kinematik und Dynamik",
+  12: "Optik",
+  13: "Grundlagen (Massen, Dichte, …)"
+};
+
+// ═══ Simulationen ═══
+// Neue Simulation: Ordner mit index.html anlegen und hier eine Zeile ergänzen.
+// Themen ohne Simulation werden automatisch ausgeblendet.
+// ordner: Unterordner mit index.html   thema: Nummer aus THEMEN   badges: optional
+const SIMULATIONEN = [
+  { ordner: "elektroskop", titel: "Elektroskop", thema: 1,
+    text: "Geriebene Stäbe annähern, berühren und wegnehmen: Ladungsverteilung am Elektroskop." },
+  { ordner: "test", titel: "Erde und Mond in 3D", thema: 1, badges: ["Test"],
+    text: "Dreidimensionales Modell von Erde und Mond zum Drehen." },
+  { ordner: "lorentzkraft", titel: "Lorentzkraft", thema: 1,
+    text: "Kraft auf einen stromdurchflossenen Leiter im Magnetfeld." },
+  { ordner: "interferenz", titel: "Interferenz am Doppelspalt", thema: 5,
+    text: "Interferenzmuster von Licht an Doppelspalt und Gitter, mit Wellenlänge und Spaltabstand." },
+  { ordner: "photoeffekt-lehrerversion", titel: "Äußerer Photoeffekt", thema: 6, badges: ["Lehrerversion"],
+    text: "Gegenfeldmethode mit Wertetabelle und Diagrammen." },
+  { ordner: "photoeffekt-schuelerversion", titel: "Äußerer Photoeffekt", thema: 6, badges: ["Schülerversion"],
+    text: "Gegenfeldmethode zum selbst Experimentieren." }
+];
+
+// ═══ Darstellung ═══
+const liste = document.getElementById("liste");
+const suche = document.getElementById("suche");
+const alleThemen = document.getElementById("alleThemen");
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function passt(sim, q) {
+  if (!q) return true;
+  const heu = [sim.titel, sim.text, THEMEN[sim.thema], ...(sim.badges || [])].join(" ").toLowerCase();
+  return q.split(/\s+/).every(w => heu.includes(w));
+}
+
+function zeichnen() {
+  const q = suche.value.trim().toLowerCase();
+  const leereZeigen = alleThemen.checked && !q;
+  let html = "";
+  let treffer = 0;
+
+  for (const [nr, name] of Object.entries(THEMEN)) {
+    const sims = SIMULATIONEN.filter(s => String(s.thema) === nr && passt(s, q));
+    if (!sims.length && !leereZeigen) continue;
+    treffer += sims.length;
+    html += `<section id="thema-${nr}">
+      <h2><span class="nr">${nr}</span> ${esc(name)}<span class="count">${sims.length || ""}</span></h2>`;
+    if (sims.length) {
+      html += `<div class="grid">` + sims.map(s => `
+        <a class="card" href="${esc(s.ordner)}/">
+          <h3>${esc(s.titel)}</h3>
+          <p>${esc(s.text || "")}</p>
+          ${s.badges ? `<div class="badges">${s.badges.map(b => `<span class="badge">${esc(b)}</span>`).join("")}</div>` : ""}
+        </a>`).join("") + `</div>`;
+    } else {
+      html += `<p class="empty">Noch keine Simulation.</p>`;
+    }
+    html += `</section>`;
+  }
+
+  if (q && !treffer) html = `<p class="none">Keine Simulation gefunden.</p>`;
+  liste.innerHTML = html;
+}
+
+suche.addEventListener("input", zeichnen);
+alleThemen.addEventListener("change", zeichnen);
+zeichnen();
+</script>
+</body>
+</html>
