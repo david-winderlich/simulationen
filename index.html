@@ -56,19 +56,27 @@
   }
   section h2 .count { margin-left: auto; color: var(--muted); font-size: .85rem; font-weight: normal; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-  a.card {
+  .card {
     display: block; overflow: hidden; text-decoration: none; color: inherit;
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
     transition: border-color .15s, transform .15s;
   }
   a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
-  a.card .vorschau {
+  .card .vorschau {
     display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: left top;
     border-bottom: 1px solid var(--line); background: var(--badge);
   }
-  a.card .inhalt { padding: 12px 16px 14px; }
-  a.card h3 { margin: 0 0 4px; font-size: 1.02rem; color: var(--accent); }
-  a.card p { margin: 0; color: var(--muted); font-size: .92rem; }
+  .card .inhalt { padding: 12px 16px 14px; }
+  .card h3 { margin: 0 0 4px; font-size: 1.02rem; color: var(--accent); }
+  .card p { margin: 0; color: var(--muted); font-size: .92rem; }
+  .versionen { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  a.version {
+    flex: 1 1 120px; text-align: center; padding: 8px 10px; white-space: nowrap; border-radius: 8px;
+    font-size: .9rem; font-weight: 600; text-decoration: none;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent);
+    transition: background .15s, color .15s;
+  }
+  a.version:hover, a.version:focus-visible { background: var(--accent); color: var(--card); outline: none; }
   .badges { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
   .badge { font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: var(--badge); color: var(--muted); }
   .empty { color: var(--muted); font-style: italic; font-size: .92rem; margin: 0; }
@@ -115,6 +123,8 @@ const THEMEN = {
 // Themen ohne Simulation werden automatisch ausgeblendet.
 // ordner: Unterordner mit index.html und vorschau.jpg (ca. 640×400)
 // thema: Nummer aus THEMEN   badges: optional
+// Mehrere Fassungen (z. B. Lehrer/Schüler): statt ordner eine Liste versionen angeben,
+// das Vorschaubild kommt aus dem ersten Ordner.
 const SIMULATIONEN = [
   { ordner: "elektroskop", titel: "Elektroskop", thema: 1,
     text: "Geriebene Stäbe annähern, berühren und wegnehmen: Ladungsverteilung am Elektroskop." },
@@ -122,10 +132,12 @@ const SIMULATIONEN = [
     text: "Kraft auf einen stromdurchflossenen Leiter im Magnetfeld." },
   { ordner: "interferenz", titel: "Interferenz am Doppelspalt", thema: 5,
     text: "Interferenzmuster von Licht an Doppelspalt und Gitter, mit Wellenlänge und Spaltabstand." },
-  { ordner: "photoeffekt-lehrerversion", titel: "Äußerer Photoeffekt", thema: 6, badges: ["Lehrerversion"],
-    text: "Gegenfeldmethode mit Wertetabelle und Diagrammen." },
-  { ordner: "photoeffekt-schuelerversion", titel: "Äußerer Photoeffekt", thema: 6, badges: ["Schülerversion"],
-    text: "Gegenfeldmethode zum selbst Experimentieren." }
+  { titel: "Äußerer Photoeffekt", thema: 6,
+    text: "Gegenfeldmethode: Elektronenenergie in Abhängigkeit von Wellenlänge und Kathodenmaterial.",
+    versionen: [
+      { name: "Lehrerversion", ordner: "photoeffekt-lehrerversion" },
+      { name: "Schülerversion", ordner: "photoeffekt-schuelerversion" }
+    ] }
 ];
 
 // ═══ Darstellung ═══
@@ -137,8 +149,25 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 
 function passt(sim, q) {
   if (!q) return true;
-  const heu = [sim.titel, sim.text, THEMEN[sim.thema], ...(sim.badges || [])].join(" ").toLowerCase();
+  const heu = [sim.titel, sim.text, THEMEN[sim.thema], ...(sim.badges || []),
+    ...(sim.versionen || []).map(v => v.name)].join(" ").toLowerCase();
   return q.split(/\s+/).every(w => heu.includes(w));
+}
+
+function karte(s) {
+  const bildOrdner = s.versionen ? s.versionen[0].ordner : s.ordner;
+  const innen = `
+    <img class="vorschau" src="${esc(bildOrdner)}/vorschau.jpg" alt="" loading="lazy" onerror="this.remove()">
+    <div class="inhalt">
+      <h3>${esc(s.titel)}</h3>
+      <p>${esc(s.text || "")}</p>
+      ${s.badges ? `<div class="badges">${s.badges.map(b => `<span class="badge">${esc(b)}</span>`).join("")}</div>` : ""}
+      ${s.versionen ? `<div class="versionen">${s.versionen.map(v =>
+        `<a class="version" href="${esc(v.ordner)}/">${esc(v.name)}</a>`).join("")}</div>` : ""}
+    </div>`;
+  return s.versionen
+    ? `<div class="card">${innen}</div>`
+    : `<a class="card" href="${esc(s.ordner)}/">${innen}</a>`;
 }
 
 function zeichnen() {
@@ -154,15 +183,7 @@ function zeichnen() {
     html += `<section id="thema-${nr}">
       <h2>${esc(name)}<span class="count">${sims.length || ""}</span></h2>`;
     if (sims.length) {
-      html += `<div class="grid">` + sims.map(s => `
-        <a class="card" href="${esc(s.ordner)}/">
-          <img class="vorschau" src="${esc(s.ordner)}/vorschau.jpg" alt="" loading="lazy" onerror="this.remove()">
-          <div class="inhalt">
-          <h3>${esc(s.titel)}</h3>
-          <p>${esc(s.text || "")}</p>
-          ${s.badges ? `<div class="badges">${s.badges.map(b => `<span class="badge">${esc(b)}</span>`).join("")}</div>` : ""}
-          </div>
-        </a>`).join("") + `</div>`;
+      html += `<div class="grid">` + sims.map(karte).join("") + `</div>`;
     } else {
       html += `<p class="empty">Noch keine Simulation.</p>`;
     }
