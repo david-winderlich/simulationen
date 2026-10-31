@@ -61,6 +61,8 @@
   }
   /* Folienrand füllt das ganze Fenster; die Glasfläche sitzt wie in PowerPoint 9 pt vom Rand */
   .frame { position: fixed; inset: 0; background: var(--rand) var(--rand-bild) center / 100% 100% no-repeat; }
+  .frame::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, .6); opacity: 0; transition: opacity .4s; }
+  html[data-modus="dunkel"] .frame::after { opacity: 1; }
   .glass {
     position: fixed;
     top: max(1.667vh, 8px, env(safe-area-inset-top, 0px));
@@ -192,6 +194,7 @@
     transition: background-color .15s, color .15s;
   }
   a.version:hover, a.version:focus-visible { background: var(--accent); color: var(--paper); outline: none; }
+  .shelf .empty { padding: 1rem 1.25rem; }
   .empty {
     border: 2px dashed var(--line); border-radius: 14px; padding: 1.5rem; margin: 0;
     color: var(--muted); font: 600 1rem var(--font-ui); max-width: 34rem;
@@ -258,7 +261,7 @@ const THEMEN = {
 
 // ═══ Simulationen ═══
 // Neue Simulation: Ordner mit index.html anlegen und hier eine Zeile ergänzen.
-// Themen ohne Simulation werden automatisch ausgeblendet.
+// Themen ohne Simulation werden mit „Noch keine Simulation.“ angezeigt.
 // ordner: Unterordner mit index.html, vorschau-hell.jpg und vorschau-dunkel.jpg (je 640×400)
 // thema: Nummer aus THEMEN   badges: optional
 // Mehrere Fassungen (z. B. Lehrer/Schüler): statt ordner eine Liste versionen angeben,
@@ -331,6 +334,10 @@ function karte(s) {
 
 // Ein Thema als Reihe; nr = Themennummer zum Aufklappen (null bei Suchergebnissen)
 function regal(titel, sims, nr, grid) {
+  if (!sims.length) {
+    return `<section class="shelf" data-thema="${nr}"><div class="shelf-head"><h2 class="shelf-open" style="cursor:default">${esc(titel)}</h2></div>` +
+           `<p class="empty">Noch keine Simulation.</p></section>`;
+  }
   const anzahl = sims.length + (sims.length === 1 ? " Simulation" : " Simulationen");
   const kopf = nr == null || grid
     ? `<h2 class="shelf-open" style="cursor:default">${esc(titel)}</h2><span class="shelf-count">${anzahl}</span>`
@@ -355,7 +362,7 @@ function zeichnen() {
     let html = "";
     for (const [nr, name] of Object.entries(THEMEN)) {
       const sims = SIMULATIONEN.filter(s => String(s.thema) === nr);
-      if (sims.length) html += regal(name, sims, nr, false);
+      html += regal(name, sims, nr, false);
     }
     shelves.innerHTML = html || `<p class="empty">Noch keine Simulationen angelegt.</p>`;
   }
