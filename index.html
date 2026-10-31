@@ -1,102 +1,240 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-modus="hell">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Physik-Simulationen</title>
 <meta name="description" content="Interaktive Physik-Simulationen für den Unterricht, nach Themen sortiert.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Quicksand:wght@500;600;700&family=Caladea:wght@400;700&display=swap">
+<script>
+  // Gewählten Modus vor dem ersten Zeichnen setzen, damit die Seite nicht kurz hell aufblitzt
+  try { if (localStorage.getItem('simulationen-modus') === 'dunkel') document.documentElement.setAttribute('data-modus', 'dunkel'); } catch (e) {}
+</script>
 <style>
+  /* Layout wie bei den Mathe-Aufgaben (Klasse 11 + 12): grauer Folienrand mit einer großen Milchglasfläche.
+     Ohne Seitenleiste; oben Hell/Dunkel-Schalter, Suche und Schullogo, darunter die Themen als Kartenreihen. */
   :root {
-    --bg: #f5f6f8;
-    --card: #ffffff;
-    --text: #1d2330;
-    --muted: #5d6677;
-    --line: #dde1e8;
-    --accent: #2f6fd6;
-    --accent-soft: #e6eefb;
-    --badge: #eef0f3;
+    --rand: #535353;
+    --rand-bild: url("assets/rand.jpg");
+    --glass: rgba(253, 253, 253, .93);
+    --paper: #ffffff;
+    --ink: #1d2a24;
+    --muted: #5b625f;
+    --line: #dadada;
+    --accent: #404040;
+    --accent-soft: #e6e6e6;
+    --sub: #545454;
+    --shadow: rgba(20, 20, 20, .55);
+    --card-shadow: rgba(20, 20, 20, .08);
+    --card-shadow-hover: rgba(20, 20, 20, .18);
+    --logo-filter: none;
+    --font-ui: "Quicksand", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --font-chapter: "Aptos Display", "Aptos", "Segoe UI", system-ui, sans-serif;
+    --font-sub: Cambria, Caladea, Georgia, serif;
+    color-scheme: light;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #12151b;
-      --card: #1b2029;
-      --text: #e7eaf0;
-      --muted: #9aa3b2;
-      --line: #2b323e;
-      --accent: #7aa7f0;
-      --accent-soft: #223149;
-      --badge: #262d38;
-    }
+  html[data-modus="dunkel"] {
+    --glass: rgba(30, 32, 36, .92);
+    --paper: #2a2d33;
+    --ink: #e9ebee;
+    --muted: #a7adb5;
+    --line: #41454d;
+    --accent: #e2e2e2;
+    --accent-soft: #3a3e45;
+    --sub: #cfcfcf;
+    --shadow: rgba(0, 0, 0, .7);
+    --card-shadow: rgba(0, 0, 0, .25);
+    --card-shadow-hover: rgba(0, 0, 0, .5);
+    --logo-filter: invert(1);
+    color-scheme: dark;
   }
-  * { box-sizing: border-box; }
+
+  [hidden] { display: none !important; }
+  html, body { height: 100%; overflow: hidden; }
+  html { background: var(--rand) var(--rand-bild) center / 100% 100% no-repeat; }
   body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    margin: 0; background: transparent; color: var(--ink);
+    font-family: var(--font-body); font-size: 1.125rem; line-height: 1.55;
   }
-  .wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px; }
-  header h1 { margin: 0 0 4px; font-size: 1.8rem; }
-  header p { margin: 0; color: var(--muted); }
-  .tools {
-    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-    margin: 24px 0 8px;
+  /* Folienrand füllt das ganze Fenster; die Glasfläche sitzt wie in PowerPoint 9 pt vom Rand */
+  .frame { position: fixed; inset: 0; background: var(--rand) var(--rand-bild) center / 100% 100% no-repeat; }
+  .glass {
+    position: fixed;
+    top: max(1.667vh, 8px, env(safe-area-inset-top, 0px));
+    bottom: max(1.667vh, 8px, env(safe-area-inset-bottom, 0px));
+    left: max(.9375vw, 8px, env(safe-area-inset-left, 0px));
+    right: max(.9375vw, 8px, env(safe-area-inset-right, 0px));
+    background: var(--glass);
+    transition: background-color .4s, box-shadow .4s;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border-radius: max(1.354vw, 12px);
+    box-shadow: 0 8px 16px var(--shadow);
+    display: flex; flex-direction: column; overflow: hidden;
   }
-  .tools input[type="search"] {
-    flex: 1 1 240px; padding: 9px 12px; font: inherit;
-    border: 1px solid var(--line); border-radius: 8px;
-    background: var(--card); color: var(--text);
+
+  /* Kopfzeile */
+  .topbar {
+    flex: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    padding: 1.3rem clamp(1rem, 3vw, 2.5rem) .6rem;
   }
-  .tools label { color: var(--muted); font-size: .95rem; cursor: pointer; user-select: none; }
-  section { margin-top: 28px; }
-  section h2 {
-    display: flex; align-items: baseline; gap: 10px;
-    margin: 0 0 12px; font-size: 1.15rem;
-    padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  .topbar-left { display: flex; align-items: center; gap: .8rem; flex: 0 1 26rem; min-width: 0; }
+  .mode-toggle {
+    flex: none; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; cursor: pointer;
+    border: 0; border-radius: 12px; background: transparent; color: var(--ink);
   }
-  section h2 .count { margin-left: auto; color: var(--muted); font-size: .85rem; font-weight: normal; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-  .card {
-    display: block; overflow: hidden; text-decoration: none; color: inherit;
-    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-    transition: border-color .15s, transform .15s;
+  .mode-toggle:hover { background: var(--accent-soft); }
+  .mode-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .mode-toggle svg { width: 26px; height: 26px; transition: transform .4s; }
+  html[data-modus="dunkel"] .mode-toggle svg { transform: rotate(360deg); }
+  .mode-toggle .sonne { display: none; }
+  html[data-modus="dunkel"] .mode-toggle .sonne { display: block; }
+  html[data-modus="dunkel"] .mode-toggle .mond { display: none; }
+  /* Schullogo wie in den PowerPoints: leicht transparent, gehört zum Hintergrund */
+  .school-link { flex: none; display: block; line-height: 0; border-radius: 8px; max-width: 40%; }
+  .school-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+  .school-logo {
+    height: 56px; width: auto; max-width: 100%; display: block; object-fit: contain;
+    opacity: .72; filter: var(--logo-filter); transition: opacity .2s;
+    user-select: none; -webkit-user-select: none;
   }
-  a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
-  .card .vorschau {
+  html[data-modus="dunkel"] .school-logo { opacity: .8; }
+  .school-link:hover .school-logo { opacity: .95; }
+  .search {
+    display: flex; align-items: center; gap: .6rem; flex: 1; min-width: 0;
+    border-bottom: 2px solid transparent; padding: .3rem .2rem;
+  }
+  .search:focus-within { border-bottom-color: var(--accent); }
+  .search svg { width: 24px; height: 24px; flex: none; color: var(--ink); }
+  .search input {
+    font: 500 1.05rem var(--font-ui); color: var(--ink);
+    border: 0; background: transparent; outline: none; min-width: 0; width: 100%;
+  }
+  .search input::placeholder { color: var(--muted); opacity: 1; }
+  .search input:focus::placeholder { color: transparent; }
+  .search input::-webkit-search-cancel-button { filter: var(--logo-filter); }
+
+  /* Inhalt: nur dieser Bereich scrollt */
+  .page {
+    flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain;
+    padding: .8rem clamp(1rem, 3vw, 2.5rem) 3rem;
+  }
+  .view { display: grid; gap: 1.25rem; }
+  .head { display: grid; gap: .4rem; }
+  h1, h2 { text-wrap: balance; margin: 0; line-height: 1.15; }
+  h1 {
+    font-family: var(--font-chapter); font-weight: 600; letter-spacing: -.01em;
+    font-size: clamp(1.6rem, 4.5vw, 2.2rem);
+  }
+  .lead { margin: 0; font: 500 1.05rem/1.4 var(--font-ui); color: var(--muted); }
+
+  /* Themen als Reihen, Simulationen nebeneinander (wie die Unterkategorien bei den Mathe-Aufgaben) */
+  .shelves { display: grid; gap: 2.2rem; padding-top: .75rem; }
+  .shelf { display: grid; gap: .9rem; min-width: 0; transition: opacity .25s ease, transform .25s ease; }
+  .shelf.leaving { opacity: 0; transform: translateY(-8px); }
+  .shelf.entering { animation: shelfIn .35s ease both; }
+  @keyframes shelfIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .shelf-head { display: flex; align-items: baseline; gap: .4rem .8rem; flex-wrap: wrap; }
+  .shelf-head h2 { margin: 0; }
+  .shelf-open {
+    font: 400 1.75rem/1.15 var(--font-sub); font-variant: small-caps; letter-spacing: .02em; color: var(--sub);
+    background: none; border: 0; border-radius: 8px; padding: 0; text-align: left; cursor: pointer;
+  }
+  .shelf-open:hover { color: var(--accent); }
+  .shelf-open:focus-visible, .shelf-all:focus-visible, .back-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .shelf-all {
+    font: 600 .95rem var(--font-ui); color: var(--accent); text-decoration: underline; text-underline-offset: 3px;
+    background: none; border: 0; padding: 0; cursor: pointer;
+  }
+  .shelf-count { font: 600 .95rem var(--font-ui); color: var(--muted); }
+  .back-btn {
+    justify-self: start; font: 700 1rem/1.2 var(--font-ui); color: var(--accent); cursor: pointer;
+    background: var(--paper); border: 2px solid var(--accent-soft); border-radius: 999px; padding: .5rem 1rem; min-height: 44px;
+  }
+  .row {
+    display: flex; gap: 1.25rem;
+    overflow-x: auto; overscroll-behavior-x: contain;
+    scrollbar-width: none; cursor: grab; user-select: none; -webkit-user-select: none;
+    padding: .4rem .3rem 1rem; margin-inline: -.3rem;
+  }
+  .row::-webkit-scrollbar { display: none; }
+  .row.dragging { cursor: grabbing; }
+  .row.dragging .tcard { pointer-events: none; }
+  .row.grid { flex-wrap: wrap; overflow: visible; cursor: default; }
+
+  /* Karten */
+  .tcard {
+    flex: 0 0 17rem; max-width: 100%;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    text-decoration: none; color: var(--ink);
+    display: grid; grid-template-rows: auto 1fr;
+    box-shadow: 0 3px 8px var(--card-shadow);
+    transition: border-color .15s, box-shadow .15s, background-color .4s;
+  }
+  a.tcard:hover, div.tcard:hover { border-color: var(--accent); box-shadow: 0 8px 18px var(--card-shadow-hover); }
+  a.tcard:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .thumb {
     display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: left top;
-    border-bottom: 1px solid var(--line); background: var(--badge);
+    border-bottom: 1px solid var(--line); background: var(--accent-soft);
   }
-  .card .inhalt { padding: 12px 16px 14px; }
-  .card h3 { margin: 0 0 4px; font-size: 1.02rem; color: var(--accent); }
-  .card p { margin: 0; color: var(--muted); font-size: .92rem; }
-  .versionen { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .card-body { padding: .85rem 1rem 1.05rem; display: grid; gap: .3rem; align-content: start; }
+  .card-body h3 { margin: 0; font: 700 1.1rem/1.25 var(--font-ui); }
+  .card-body p.meta { margin: 0; font: 500 .92rem/1.4 var(--font-ui); color: var(--muted); }
+  .badges { margin-top: .3rem; display: flex; gap: .35rem; flex-wrap: wrap; }
+  .badge { font: 600 .75rem var(--font-ui); padding: .1rem .55rem; border-radius: 99px; background: var(--accent-soft); color: var(--muted); }
+  .versionen { margin-top: .5rem; display: flex; gap: .5rem; flex-wrap: wrap; }
   a.version {
-    flex: 1 1 120px; text-align: center; padding: 8px 10px; white-space: nowrap; border-radius: 8px;
-    font-size: .9rem; font-weight: 600; text-decoration: none;
-    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent);
-    transition: background .15s, color .15s;
+    flex: 1 1 6.5rem; text-align: center; white-space: nowrap; text-decoration: none;
+    font: 700 .92rem/1.2 var(--font-ui); color: var(--accent);
+    background: var(--paper); border: 2px solid var(--accent); border-radius: 999px; padding: .45rem .7rem;
+    transition: background-color .15s, color .15s;
   }
-  a.version:hover, a.version:focus-visible { background: var(--accent); color: var(--card); outline: none; }
-  .badges { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
-  .badge { font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: var(--badge); color: var(--muted); }
-  .empty { color: var(--muted); font-style: italic; font-size: .92rem; margin: 0; }
-  .none { margin-top: 28px; color: var(--muted); }
+  a.version:hover, a.version:focus-visible { background: var(--accent); color: var(--paper); outline: none; }
+  .empty {
+    border: 2px dashed var(--line); border-radius: 14px; padding: 1.5rem; margin: 0;
+    color: var(--muted); font: 600 1rem var(--font-ui); max-width: 34rem;
+  }
+
+  @media (max-width: 720px) {
+    .topbar { padding: .8rem 1rem .25rem; }
+    .school-logo { height: 34px; }
+    .page { padding: .6rem 1rem 2.5rem; }
+    .tcard { flex-basis: 15rem; }
+    .shelf-open { font-size: 1.45rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glass, .tcard, .shelf, .mode-toggle svg { transition: none !important; animation: none !important; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Physik-Simulationen</h1>
-    <p>Interaktive Simulationen für den Unterricht, nach Themen sortiert.</p>
+<div class="frame" aria-hidden="true"></div>
+<div class="glass">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="mode-toggle" id="modeToggle" aria-pressed="false" aria-label="Dunklen Modus einschalten" title="Hell/Dunkel umschalten">
+        <svg class="mond" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+        <svg class="sonne" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+      </button>
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="M15.8 15.8 21 21"/></svg>
+        <input type="search" id="suche" placeholder="Suche" autocomplete="off" aria-label="Simulationen durchsuchen">
+      </label>
+    </div>
+    <a class="school-link" href="https://www.saengerstadt-gymnasium.de" target="_blank" rel="noopener noreferrer" title="Website des Sängerstadt-Gymnasiums öffnen (neuer Tab)"><img class="school-logo" src="assets/logo.webp" alt="Sängerstadt-Gymnasium Finsterwalde" draggable="false"></a>
   </header>
 
-  <div class="tools">
-    <input type="search" id="suche" placeholder="Simulation suchen …" aria-label="Simulation suchen">
-    <label><input type="checkbox" id="alleThemen"> Auch leere Themen anzeigen</label>
-  </div>
-
-  <main id="liste"></main>
-
+  <main class="page" id="page">
+    <section class="view" aria-label="Simulationen">
+      <header class="head">
+        <h1>Physik-Simulationen</h1>
+        <p class="lead">Interaktive Simulationen für den Unterricht, nach Themen sortiert.</p>
+      </header>
+      <div class="shelves" id="shelves"></div>
+    </section>
+  </main>
 </div>
 
 <script>
@@ -121,7 +259,7 @@ const THEMEN = {
 // ═══ Simulationen ═══
 // Neue Simulation: Ordner mit index.html anlegen und hier eine Zeile ergänzen.
 // Themen ohne Simulation werden automatisch ausgeblendet.
-// ordner: Unterordner mit index.html und vorschau.jpg (ca. 640×400)
+// ordner: Unterordner mit index.html, vorschau-hell.jpg und vorschau-dunkel.jpg (je 640×400)
 // thema: Nummer aus THEMEN   badges: optional
 // Mehrere Fassungen (z. B. Lehrer/Schüler): statt ordner eine Liste versionen angeben,
 // das Vorschaubild kommt aus dem ersten Ordner.
@@ -140,10 +278,30 @@ const SIMULATIONEN = [
     ] }
 ];
 
+// ═══ Hell/Dunkel ═══
+const root = document.documentElement;
+const modeToggle = document.getElementById("modeToggle");
+const modus = () => root.getAttribute("data-modus") === "dunkel" ? "dunkel" : "hell";
+function vorschauBilder() {
+  document.querySelectorAll("img.thumb").forEach(img => {
+    img.src = img.dataset.ordner + "/vorschau-" + modus() + ".jpg";
+  });
+}
+function setModus(m) {
+  root.setAttribute("data-modus", m);
+  const dunkel = m === "dunkel";
+  modeToggle.setAttribute("aria-pressed", String(dunkel));
+  modeToggle.setAttribute("aria-label", dunkel ? "Hellen Modus einschalten" : "Dunklen Modus einschalten");
+  try { localStorage.setItem("simulationen-modus", m); } catch (e) {}
+  vorschauBilder();
+}
+modeToggle.addEventListener("click", () => setModus(modus() === "dunkel" ? "hell" : "dunkel"));
+setModus(modus());
+
 // ═══ Darstellung ═══
-const liste = document.getElementById("liste");
+const shelves = document.getElementById("shelves");
 const suche = document.getElementById("suche");
-const alleThemen = document.getElementById("alleThemen");
+let focusThema = null; // geöffnetes Thema (Nummer als Text) oder null
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -157,45 +315,123 @@ function passt(sim, q) {
 function karte(s) {
   const bildOrdner = s.versionen ? s.versionen[0].ordner : s.ordner;
   const innen = `
-    <img class="vorschau" src="${esc(bildOrdner)}/vorschau.jpg" alt="" loading="lazy" onerror="this.remove()">
-    <div class="inhalt">
+    <img class="thumb" data-ordner="${esc(bildOrdner)}" src="${esc(bildOrdner)}/vorschau-${modus()}.jpg" alt="" loading="lazy" draggable="false" onerror="this.style.visibility='hidden'">
+    <div class="card-body">
       <h3>${esc(s.titel)}</h3>
-      <p>${esc(s.text || "")}</p>
+      <p class="meta">${esc(s.text || "")}</p>
       ${s.badges ? `<div class="badges">${s.badges.map(b => `<span class="badge">${esc(b)}</span>`).join("")}</div>` : ""}
       ${s.versionen ? `<div class="versionen">${s.versionen.map(v =>
-        `<a class="version" href="${esc(v.ordner)}/">${esc(v.name)}</a>`).join("")}</div>` : ""}
+        `<a class="version" href="${esc(v.ordner)}/" draggable="false">${esc(v.name)}</a>`).join("")}</div>` : ""}
     </div>`;
+  const id = esc(s.ordner || s.versionen[0].ordner);
   return s.versionen
-    ? `<div class="card">${innen}</div>`
-    : `<a class="card" href="${esc(s.ordner)}/">${innen}</a>`;
+    ? `<div class="tcard" data-id="${id}">${innen}</div>`
+    : `<a class="tcard" href="${esc(s.ordner)}/" draggable="false" data-id="${id}">${innen}</a>`;
+}
+
+// Ein Thema als Reihe; nr = Themennummer zum Aufklappen (null bei Suchergebnissen)
+function regal(titel, sims, nr, grid) {
+  const anzahl = sims.length + (sims.length === 1 ? " Simulation" : " Simulationen");
+  const kopf = nr == null || grid
+    ? `<h2 class="shelf-open" style="cursor:default">${esc(titel)}</h2><span class="shelf-count">${anzahl}</span>`
+    : `<h2><button type="button" class="shelf-open" data-thema="${nr}">${esc(titel)}</button></h2>` +
+      `<button type="button" class="shelf-all" data-thema="${nr}">alle anzeigen</button><span class="shelf-count">${anzahl}</span>`;
+  return `<section class="shelf" data-thema="${nr == null ? "" : nr}"><div class="shelf-head">${kopf}</div>` +
+         `<div class="row${grid ? " grid" : ""}">${sims.map(karte).join("")}</div></section>`;
 }
 
 function zeichnen() {
   const q = suche.value.trim().toLowerCase();
-  const leereZeigen = alleThemen.checked && !q;
-  let html = "";
-  let treffer = 0;
-
-  for (const [nr, name] of Object.entries(THEMEN)) {
-    const sims = SIMULATIONEN.filter(s => String(s.thema) === nr && passt(s, q));
-    if (!sims.length && !leereZeigen) continue;
-    treffer += sims.length;
-    html += `<section id="thema-${nr}">
-      <h2>${esc(name)}<span class="count">${sims.length || ""}</span></h2>`;
-    if (sims.length) {
-      html += `<div class="grid">` + sims.map(karte).join("") + `</div>`;
-    } else {
-      html += `<p class="empty">Noch keine Simulation.</p>`;
+  if (q) {
+    const treffer = SIMULATIONEN.filter(s => passt(s, q));
+    shelves.innerHTML = treffer.length
+      ? regal(`Suche: „${suche.value.trim()}“`, treffer, null, true)
+      : `<p class="empty">Keine Simulation passt zu deiner Suche. Versuche ein anderes Wort, zum Beispiel „Feld“ oder „Licht“.</p>`;
+  } else if (focusThema != null && SIMULATIONEN.some(s => String(s.thema) === focusThema)) {
+    shelves.innerHTML = `<button type="button" class="back-btn" id="backAll">← Alle Themen</button>` +
+      regal(THEMEN[focusThema], SIMULATIONEN.filter(s => String(s.thema) === focusThema), focusThema, true);
+  } else {
+    focusThema = null;
+    let html = "";
+    for (const [nr, name] of Object.entries(THEMEN)) {
+      const sims = SIMULATIONEN.filter(s => String(s.thema) === nr);
+      if (sims.length) html += regal(name, sims, nr, false);
     }
-    html += `</section>`;
+    shelves.innerHTML = html || `<p class="empty">Noch keine Simulationen angelegt.</p>`;
   }
-
-  if (q && !treffer) html = `<p class="none">Keine Simulation gefunden.</p>`;
-  liste.innerHTML = html;
+  reihenBinden();
+  if (!q) {
+    const h = focusThema != null ? "#thema-" + focusThema : location.pathname + location.search;
+    try { history.replaceState(null, "", h); } catch (e) {}
+  }
 }
 
+// Kartenreihen mit gedrückter Maustaste verschieben; das Mausrad scrollt weiter die Seite
+function reihenBinden() {
+  shelves.querySelectorAll(".row").forEach(row => {
+    let down = false, moved = false, startX = 0, startLeft = 0;
+    row.addEventListener("pointerdown", e => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      down = true; moved = false; startX = e.clientX; startLeft = row.scrollLeft;
+    });
+    row.addEventListener("pointermove", e => {
+      if (!down) return;
+      const dx = e.clientX - startX;
+      if (!moved && Math.abs(dx) > 5) { moved = true; row.classList.add("dragging"); row.setPointerCapture(e.pointerId); }
+      if (moved) row.scrollLeft = startLeft - dx;
+    });
+    const end = () => { down = false; setTimeout(() => row.classList.remove("dragging"), 0); };
+    row.addEventListener("pointerup", end);
+    row.addEventListener("pointercancel", end);
+    row.addEventListener("click", e => { if (moved) { e.preventDefault(); moved = false; } }, true);
+    row.addEventListener("wheel", e => {
+      // Seitliches Wischen auf dem Touchpad ignorieren, damit nur die Seite scrollt
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault();
+    }, { passive: false });
+    row.addEventListener("dragstart", e => e.preventDefault());
+  });
+}
+
+const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Thema aufklappen/zuklappen: Karten gleiten von ihrer alten an ihre neue Position (FLIP)
+function themaWechseln(next) {
+  if (reduceMotion) { focusThema = next; zeichnen(); return; }
+  const keep = next != null ? next : focusThema;
+  const before = {};
+  shelves.querySelectorAll(`.shelf[data-thema="${keep}"] .tcard`).forEach(el => { before[el.dataset.id] = el.getBoundingClientRect(); });
+  const others = shelves.querySelectorAll(`.shelf:not([data-thema="${keep}"]), .back-btn`);
+  others.forEach(el => el.classList.add("leaving"));
+  setTimeout(() => {
+    focusThema = next;
+    zeichnen();
+    shelves.querySelectorAll(".shelf").forEach(sh => {
+      if (sh.getAttribute("data-thema") !== String(keep)) sh.classList.add("entering");
+    });
+    shelves.querySelectorAll(`.shelf[data-thema="${keep}"] .tcard`).forEach((el, i) => {
+      const a = before[el.dataset.id]; if (!a) return;
+      const b = el.getBoundingClientRect();
+      el.animate([
+        { transform: `translate(${a.left - b.left}px,${a.top - b.top}px)` },
+        { transform: "none" }
+      ], { duration: 450, delay: i * 40, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" });
+    });
+  }, others.length ? 220 : 0);
+}
+shelves.addEventListener("click", e => {
+  const open = e.target.closest("[data-thema].shelf-open, [data-thema].shelf-all");
+  if (open) { themaWechseln(open.getAttribute("data-thema")); return; }
+  if (e.target.closest("#backAll")) themaWechseln(null);
+});
+
+// Direktlink auf ein Thema: …/simulationen/#thema-5
+function hashLesen() {
+  const m = /^#thema-(\d+)$/.exec(location.hash);
+  focusThema = m && THEMEN[m[1]] ? m[1] : null;
+}
+window.addEventListener("hashchange", () => { hashLesen(); zeichnen(); });
+
 suche.addEventListener("input", zeichnen);
-alleThemen.addEventListener("change", zeichnen);
+hashLesen();
 zeichnen();
 </script>
 </body>
