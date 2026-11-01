@@ -8,12 +8,12 @@
 :root{
   --bg:#f6f6f3; --panel:#ffffff; --panel2:#f0f0eb; --ink:#1b1f24; --muted:#5b6470; --line:#d8d8d0; --accent:#1f6fd1;
   --neg:#0b2a8f; --pos:#8b0d0d; --symfill:#fff;
-  --stage:#ffffff; --metal:#808080; --metal2:#a6a6a6; --edge:#333; --dark:#333; --dark2:#1a1a1a; --label:#333; --hintbg:rgba(255,255,255,.9);
+  --stage:#ffffff; --metal:#808080; --metal2:#a6a6a6; --edge:#333; --dark:#333; --dark2:#1a1a1a; --label:#333; --hintbg:rgba(255,255,255,.9); --glass:rgba(225,240,250,.6);
 }
 :root[data-theme="dark"]{
   --bg:#0d1016; --panel:#141922; --panel2:#1c222d; --ink:#e8ecf2; --muted:#98a2b0; --line:#2a3240; --accent:#5aa9f0;
   --neg:#7fa8ff; --pos:#ff8080; --symfill:#141922;
-  --stage:#0d1016; --metal:#8c96a3; --metal2:#aab3bf; --edge:#05070a; --dark:#3a4352; --dark2:#566070; --label:#c9d0da; --hintbg:rgba(13,16,22,.9);
+  --stage:#0d1016; --metal:#8c96a3; --metal2:#aab3bf; --edge:#05070a; --dark:#3a4352; --dark2:#566070; --label:#c9d0da; --hintbg:rgba(13,16,22,.9); --glass:rgba(160,190,215,.12);
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -73,6 +73,7 @@ ol li{margin:2px 0}
           <stop offset="0" stop-color="#3d7bff" stop-opacity=".55"/>
           <stop offset="1" stop-color="#3d7bff" stop-opacity="0"/>
         </radialGradient>
+        <filter id="glowBlur" x="-50%" y="-100%" width="200%" height="300%"><feGaussianBlur stdDeviation="4"/></filter>
       </defs>
 
       <!-- Gehäuse -->
@@ -110,9 +111,24 @@ ol li{margin:2px 0}
         <path id="cableInner" fill="none" stroke="#3f8f2e" stroke-width="6" stroke-linecap="round"/>
         <path id="cableStripe" fill="none" stroke="#e8d23a" stroke-width="2" stroke-dasharray="10 8"/>
         <g id="plug" style="cursor:grab">
-          <rect x="-24" y="-7" width="18" height="14" rx="3" fill="#2b2b2b" stroke="#111" stroke-width="1.5"/>
-          <rect x="-7" y="-3" width="8" height="6" fill="#c9a24a" stroke="#6b5420" stroke-width="1"/>
-          <circle cx="-8" cy="0" r="22" fill="transparent"/>
+          <g id="plugBody">
+            <rect x="-24" y="-7" width="18" height="14" rx="3" fill="#2b2b2b" stroke="#111" stroke-width="1.5"/>
+            <rect x="-7" y="-3" width="8" height="6" fill="#c9a24a" stroke="#6b5420" stroke-width="1"/>
+            <circle cx="-8" cy="0" r="22" fill="transparent"/>
+          </g>
+          <!-- Glimmlampe: Spitze (x = 0) berührt das Elektroskop, das Kabel hängt bei x = -148 -->
+          <g id="lamp" style="display:none">
+            <rect x="-114" y="-13" width="80" height="26" style="fill:var(--glass);stroke:var(--label)" stroke-width="2"/>
+            <ellipse id="glowE" cx="-94" cy="0" rx="26" ry="9" fill="#ff8a1e" filter="url(#glowBlur)" opacity="0"/>
+            <ellipse id="glowS" cx="-54" cy="0" rx="26" ry="9" fill="#ff8a1e" filter="url(#glowBlur)" opacity="0"/>
+            <path d="M-114,0 L-78,0 L-70,-5" fill="none" style="stroke:var(--label)" stroke-width="2.5"/>
+            <path d="M-34,0 L-66,0 L-74,5" fill="none" style="stroke:var(--label)" stroke-width="2.5"/>
+            <path id="wireE" d="M-114,0 L-78,0 L-70,-5" fill="none" stroke="#ffb15c" stroke-width="2.5" opacity="0"/>
+            <path id="wireS" d="M-34,0 L-66,0 L-74,5" fill="none" stroke="#ffb15c" stroke-width="2.5" opacity="0"/>
+            <path d="M-34,-15 L-22,-15 Q-2,-12 0,0 Q-2,12 -22,15 L-34,15 Z" fill="#cccccc" stroke="#222" stroke-width="2"/>
+            <path d="M-114,-15 L-126,-15 Q-146,-12 -148,0 Q-146,12 -126,15 L-114,15 Z" fill="#cccccc" stroke="#222" stroke-width="2"/>
+            <rect x="-152" y="-22" width="158" height="44" fill="transparent"/>
+          </g>
         </g>
       </g>
       <g id="particleLayer"></g>
@@ -150,6 +166,7 @@ ol li{margin:2px 0}
     <section>
       <h2>Elektroskop</h2>
       <p class="small" style="margin:2px 0 6px">Zum Erden das Kabel unten rechts mit der Maus an den Teller ziehen.</p>
+      <label class="switch"><span>Glimmlampe am Erdungskabel</span><input type="checkbox" id="swLamp"><span class="tg"></span></label>
       <div class="btns" style="margin-top:6px">
         <button id="btnDischarge">Elektroskop entladen</button>
         <button id="btnReset">Alles zurücksetzen</button>
@@ -268,7 +285,10 @@ let R = 14;                // Elektronenüberschuss des Stabs
 let rodSign = 1;           // +1 Kunststoff (−), −1 Glas (+)
 const rod = {x:700, y:90}; let rodTarget = {x:700, y:90}; let dragging = false;
 let influenceOn = true;
+let lampOn = false, glowS = 0, glowE = 0;   // Glimmlampe: Leuchten an der Elektroskop- bzw. Erdseite
 const CABLE_A = {x:820, y:600}, PLUG_REST = {x:735, y:470};
+const LAMP_REST = {x:660, y:390};
+const restPos = () => lampOn ? LAMP_REST : PLUG_REST;
 const plug = {...PLUG_REST}; let plugDrag = false;
 let theta = 0, omega = 0;
 let flowOn = true, chargesOn = true, speed = 1;
@@ -309,7 +329,8 @@ const cableEarthed = () => cableTouch() && !plugDrag;
 const isGrounded = () => cableEarthed();
 function cableCurve(n){
   // Bezierkurve von der Erdbuchse zum Steckerende
-  const B = {x: plug.x - 24*PLUG_DIR.x, y: plug.y - 24*PLUG_DIR.y};
+  const L = lampOn ? 148 : 24;
+  const B = {x: plug.x - L*PLUG_DIR.x, y: plug.y - L*PLUG_DIR.y};
   const c1 = {x: CABLE_A.x, y: CABLE_A.y - 110}, c2 = {x: B.x + 55, y: B.y + 75};
   const pts = [];
   for (let i=0;i<=n;i++){
@@ -325,6 +346,10 @@ function drawCable(){
   for (const id of ["cableOuter","cableInner","cableStripe"]) $(id).setAttribute("d", d);
   const ang = Math.atan2(PLUG_DIR.y, PLUG_DIR.x) * 180/Math.PI;
   $("plug").setAttribute("transform", `translate(${plug.x},${plug.y}) rotate(${ang})`);
+  $("plugBody").style.display = lampOn ? "none" : "";
+  $("lamp").style.display = lampOn ? "" : "none";
+  $("glowS").setAttribute("opacity", glowS); $("wireS").setAttribute("opacity", glowS);
+  $("glowE").setAttribute("opacity", glowE); $("wireE").setAttribute("opacity", glowE);
 }
 
 // ---------- Ladungsbilanz mit Elektronen unterwegs ----------
@@ -406,8 +431,9 @@ function route(from, to){
     if (w === "bot") return stemDown.slice().reverse();     // Zeiger -> Teller
     if (w === "rod") { const c = contactPoint(); return [c, {x:Math.min(Math.max(c.x,295),425), y:150}]; }
     if (w === "earth"){
-      // Erde -> Kabel -> Stecker -> Teller
-      return [...cableCurve(24), {x:plug.x, y:plug.y}, {x:Math.min(Math.max(plug.x,295),425), y:150}];
+      // Erde -> Kabel -> Stecker bzw. Glimmlampe -> Teller; lamp markiert die beiden Lampenenden
+      const c = cableCurve(24); c[c.length-1].lamp = true;
+      return [...c, {x:plug.x, y:plug.y, lamp:true}, {x:Math.min(Math.max(plug.x,295),425), y:150}];
     }
     return [];
   };
@@ -424,7 +450,8 @@ function route(from, to){
 function makeParticle(pts, to, idx){
   let len = 0; const cum = [0];
   for (let i=1;i<pts.length;i++){ len += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y); cum.push(len); }
-  return {pts, cum, len: Math.max(len,1), s:0, to, idx};
+  const lampAt = cum.filter((c, i) => pts[i].lamp);
+  return {pts, cum, len: Math.max(len,1), s:0, to, idx, lampAt};
 }
 function particlePos(p){
   const s = p.s * p.len;
@@ -439,7 +466,7 @@ function settleInstant(){
   for (let n=0; n<400; n++){
     const m = wantedMoves();
     if (!m.length) break;
-    for (const [f,t] of m){ addTo(f,-1); addTo(t,1); }
+    for (const [f,t] of m){ addTo(f,-1); addTo(t,1); if (lampOn){ if (t === "earth") glowS = 1; if (f === "earth") glowE = 1; } }
   }
 }
 
@@ -565,6 +592,8 @@ function explain(){
     else if (Q > 0){ h = "Elektroskop negativ geladen"; t = "Das Elektroskop hat einen Elektronenüberschuss. Die Elektronen stoßen sich gegenseitig ab und verteilen sich auf Teller, Stange und Zeiger. Fester und drehbarer Zeiger sind gleichnamig geladen und stoßen sich ab. Die Ladung bleibt erhalten, weil der Isolator den Abfluss verhindert."; }
     else { h = "Elektroskop positiv geladen"; t = "Dem Elektroskop fehlen Elektronen. Der Elektronenmangel verteilt sich auf Teller, Stange und Zeiger. Fester und drehbarer Zeiger sind gleichnamig geladen und stoßen sich ab. Die Ladung bleibt erhalten, weil der Isolator den Ausgleich verhindert."; }
   }
+  if (lampOn && glowS > 0.05) t += " <i>Glimmlampe:</i> Sie leuchtet auf der Seite des Elektroskops. Dort treten die Elektronen in die Lampe ein, diese Seite ist der Minuspol.";
+  else if (lampOn && glowE > 0.05) t += " <i>Glimmlampe:</i> Sie leuchtet auf der Seite der Erde. Die Elektronen kommen von der Erde, die Erdseite ist der Minuspol, das Elektroskop der Pluspol.";
   const html = `<b>${h}</b>${t}`;
   if (html !== lastExplain){ $("explain").innerHTML = html; lastExplain = html; }
 }
@@ -582,11 +611,19 @@ function frame(now){
   clampRod(rod);
 
   const earthReady = true;
+  glowS = Math.max(0, glowS - dt*2.5); glowE = Math.max(0, glowE - dt*2.5);
 
   // Elektronen bewegen
   if (flowOn){
     const v = 260 * speed;
-    for (const p of particles) p.s += v*dt / p.len;
+    for (const p of particles){
+      p.s += v*dt / p.len;
+      // Glimmlampe: Es leuchtet die Elektrode, an der die Elektronen eintreten (Minuspol)
+      if (lampOn && p.lampAt.length === 2){
+        const d = p.s * p.len;
+        if (d > Math.min(...p.lampAt) && d < Math.max(...p.lampAt)){ if (p.to === "earth") glowS = 1; else glowE = 1; }
+      }
+    }
     const done = particles.filter(p => p.s >= 1);
     particles = particles.filter(p => p.s < 1);
     for (const p of done) addTo(p.to, 1);
@@ -680,13 +717,18 @@ $("btnPos").onclick = () => setRod(-1);
 $("btnRub").onclick = () => setRod(rodSign);
 
 $("swInfl").onchange = e => influenceOn = e.target.checked;
+$("swLamp").onchange = e => {
+  lampOn = e.target.checked;
+  // freies Kabelende an eine passende Ruheposition legen (die Lampe ist länger als der Stecker)
+  if (!cableTouch()){ const r = restPos(); plug.x = r.x; plug.y = r.y; }
+};
 $("btnDischarge").onclick = () => {
   particles = particles.filter(p => p.to === "rod");
   top = 0; bot = 0;
 };
 $("btnReset").onclick = () => {
   particles = []; top = 0; bot = 0; theta = 0; omega = 0;
-  plug.x = PLUG_REST.x; plug.y = PLUG_REST.y;
+  { const r = restPos(); plug.x = r.x; plug.y = r.y; }
   rod.x = PRESET.away.x; rod.y = PRESET.away.y; rodTarget = {...PRESET.away};
   setRod(1);
 };
