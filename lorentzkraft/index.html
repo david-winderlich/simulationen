@@ -76,17 +76,85 @@ section{min-width:0}
   .panel{width:auto;border-left:0;border-top:1px solid var(--line);overflow:visible}
 }
 @media (prefers-reduced-motion: reduce){.track,.track::after{transition:none}}
+
+/* ---------- Umschalter oben links und Ansicht in der Ebene (2D) ---------- */
+:root{ --card:#ffffff; --c2-b:#e8892b; --c2-i:#3aa6ea; --c2-f:#6a3d9a; --ok:#2e9e4f; --bad:#d93025; --ok-bg:#e7f5eb; --bad-bg:#fdecea; }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --card:#1a2029; --c2-f:#b48ce8; --c2-i:#5cbcf5; --ok:#5cc97c; --bad:#ff7b72; --ok-bg:#16301f; --bad-bg:#3a1d1c; }
+}
+:root[data-theme="dark"]{ --card:#1a2029; --c2-f:#b48ce8; --c2-i:#5cbcf5; --ok:#5cc97c; --bad:#ff7b72; --ok-bg:#16301f; --bad-bg:#3a1d1c; }
+.topbar{position:absolute;top:12px;left:max(12px,env(safe-area-inset-left,0px));right:12px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;z-index:2;pointer-events:none}
+.topbar > *{pointer-events:auto}
+.topbar .viewbtns{position:static;margin-left:auto}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:2px;gap:2px;flex:none}
+.seg button{font:inherit;font-size:13px;font-weight:500;border:0;background:transparent;color:var(--muted);padding:6px 11px;border-radius:7px;cursor:pointer;min-height:30px}
+.seg button:hover{color:var(--fg);background:var(--chip)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.app.mode2d .stage canvas,.app.mode2d .hint,.app.mode2d #viewHome,.app.mode2d #viewFront,.app.mode2d .err{display:none!important} /* three.js setzt display:block inline */
+.plane{position:absolute;inset:0;overflow:auto;padding:62px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.ptitle{font-size:20px;font-weight:600;min-height:28px;text-align:center}
+.pfig{flex:1 1 auto;min-height:220px;width:100%;display:flex;justify-content:center;align-items:center}
+.pfig svg{height:100%;width:auto;max-width:100%;max-height:560px;aspect-ratio:1;display:block}
+.pctrl{width:100%;max-width:560px;display:grid;gap:10px}
+.answers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.answers .btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 8px;text-align:left;line-height:1.2}
+.answers .btn .ic{font-size:20px;line-height:1;flex:none;width:22px;text-align:center}
+.answers .btn.wide{grid-column:1 / -1}
+.answers .btn.right{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.answers .btn.wrong{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.answers .btn:disabled{cursor:default}
+.pick{display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center}
+.pick .lab{font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips .btn{min-height:34px;padding:5px 10px;font-size:13px}
+.chips .btn[aria-pressed="true"]{color:#fff;border-color:transparent}
+.chips.b .btn[aria-pressed="true"]{background:var(--c2-b)}
+.chips.i .btn[aria-pressed="true"]{background:var(--c2-i)}
+.chips.g .btn[aria-pressed="true"]{background:var(--accent)}
+.fb{border-radius:10px;padding:10px 14px;border:1px solid var(--line);background:var(--chip);min-height:22px}
+.fb.ok{border-color:var(--ok);background:var(--ok-bg)}
+.fb.bad{border-color:var(--bad);background:var(--bad-bg)}
+.fb strong{font-weight:600}
+.fb .ex{display:block;margin-top:4px;font-size:13px}
+.prow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08);background:var(--accent)}
+.legend{display:grid;grid-template-columns:34px 1fr;gap:6px 10px;align-items:center;font-size:13px}
+.legend svg{width:30px;height:30px;display:block}
+.score{font-size:20px;font-weight:600}
+.panelpart{display:contents}
+@media (max-width:820px){
+  .app.mode2d .stage{height:auto;min-height:62vh;min-height:62dvh}
+  .app.mode2d .plane{position:relative;inset:auto;overflow:visible}
+  .app.mode2d .topbar{position:relative;top:auto;left:auto;right:auto;padding:12px 12px 0}
+  .app.mode2d .plane{padding-top:10px}
+  .pfig{min-height:0;flex:none}
+  .pfig svg{width:min(100%,58vh);height:auto}
+  .answers{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 </style>
 
 </head>
 <body>
 <main class="app" id="app">
-  <section class="stage" id="stage" aria-label="3D-Ansicht der Lorentzkraft">
-    <div class="viewbtns">
-      <button class="btn small" id="viewHome" type="button">Startansicht</button>
-      <button class="btn small" id="viewFront" type="button">Von vorn</button>
-      <button class="btn small" id="togglePanel" type="button" aria-expanded="true" aria-controls="panel">Einstellungen ausblenden</button>
-      <button class="btn small" id="theme" type="button" title="Hell/Dunkel umschalten">Hell</button>
+  <section class="stage" id="stage" aria-label="Ansicht der Lorentzkraft">
+    <div class="topbar">
+      <div class="seg" role="group" aria-label="Darstellung wählen">
+        <button type="button" id="mode3d" aria-pressed="true">Hufeisenmagnet</button>
+        <button type="button" id="mode2d" aria-pressed="false">Ebene (2D)</button>
+      </div>
+      <div class="viewbtns">
+        <button class="btn small" id="viewHome" type="button">Startansicht</button>
+        <button class="btn small" id="viewFront" type="button">Von vorn</button>
+        <button class="btn small" id="togglePanel" type="button" aria-expanded="true" aria-controls="panel">Einstellungen ausblenden</button>
+        <button class="btn small" id="theme" type="button" title="Hell/Dunkel umschalten">Hell</button>
+      </div>
+    </div>
+    <div class="plane" id="plane" hidden>
+      <div class="ptitle" id="pTitle" aria-live="polite"></div>
+      <div class="pfig"><svg id="pSvg" viewBox="0 0 400 400" role="img" aria-label="Leiter im Magnetfeld, Darstellung in der Ebene"></svg></div>
+      <div class="pctrl" id="pCtrl"></div>
     </div>
     <div class="hint">Ziehen: drehen · Mausrad oder zwei Finger: zoomen · Richtungen wie „oben“, „rechts“, „zu dir“ gelten für die Startansicht.</div>
     <div class="err" id="err" hidden>Die 3D-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen und die Seite neu laden.</div>
@@ -95,8 +163,10 @@ section{min-width:0}
   <aside class="panel" id="panel" aria-label="Bedienfeld">
     <header>
       <h1>Lorentzkraft auf einen stromdurchflossenen Leiter</h1>
-      <p class="sub">Leiterschaukel im Feld eines Hufeisenmagneten. Elektronenstromrichtung und Linke-Hand-Regel.</p>
+      <p class="sub" id="subText">Leiterschaukel im Feld eines Hufeisenmagneten. Elektronenstromrichtung und Linke-Hand-Regel.</p>
     </header>
+
+    <div class="panelpart" id="panel3d">
 
     <section>
       <h2>Strom</h2>
@@ -141,6 +211,48 @@ section{min-width:0}
         <div class="item"><span class="dot" style="background:var(--c-f)"></span><div><strong>Mittelfinger</strong> (Wirkung): Kraft<br><span id="hM" class="note"></span></div></div>
       </div>
     </section>
+    </div>
+
+    <div class="panelpart" id="panel2d" hidden>
+    <section>
+      <h2>Modus</h2>
+      <div class="seg" role="group" aria-label="Modus">
+        <button type="button" id="pmPractice" aria-pressed="true">Üben</button>
+        <button type="button" id="pmExplore" aria-pressed="false">Erkunden</button>
+      </div>
+      <p class="note" id="pmNote"></p>
+    </section>
+
+    <section id="pSoughtBox">
+      <h2>Gesucht ist</h2>
+      <div class="chips g" id="pSought">
+        <button class="btn" type="button" data-s="rand" aria-pressed="true">zufällig</button>
+        <button class="btn" type="button" data-s="F" aria-pressed="false">Kraft F</button>
+        <button class="btn" type="button" data-s="I" aria-pressed="false">Strom I</button>
+        <button class="btn" type="button" data-s="B" aria-pressed="false">Magnetfeld B</button>
+      </div>
+      <label class="sw"><input type="checkbox" id="pZero" checked><span class="track"></span>Auch Aufgaben ohne Kraft (B parallel zu I)</label>
+    </section>
+
+    <section>
+      <h2>Stromrichtung und Regel</h2>
+      <p class="note" id="pTechNote"></p>
+    </section>
+
+    <section id="pScoreBox">
+      <h2>Ergebnis</h2>
+      <div class="result" aria-live="polite">
+        <div>Beim ersten Versuch richtig</div>
+        <div class="score" id="pScore">0 von 0</div>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn small" id="pReset" type="button">Zähler zurücksetzen</button></div>
+    </section>
+
+    <section>
+      <h2>Zeichen</h2>
+      <div class="legend" id="pLegend"></div>
+    </section>
+    </div>
   </aside>
 </main>
 
@@ -1710,7 +1822,9 @@ function pathPos(s, l1, l2, out){
   return out.lerpVectors(B1, A1, Math.min(s / Math.max(A1.distanceTo(B1), 1e-6), 1));
 }
 
+var appEl = $('app');
 function frame(now){
+  if (appEl.classList.contains('mode2d')) { last = now; requestAnimationFrame(frame); return; }
   var dt = Math.min((now - last) / 1000, 0.05); last = now;
   var kk = 1 - Math.exp(-dt * 7);
   anim.theta += (state.thetaIdx * Math.PI / 2 - anim.theta) * kk;
@@ -1779,6 +1893,350 @@ function frame(now){
 refresh();
 requestAnimationFrame(frame);
 window.__sim = { nMesh:nMesh, sMesh:sMesh, state:state, anim:anim, hand:hand, rod:rod, camera:camera, controls:controls, discrete:discrete, refresh:refresh };
+})();
+</script>
+<script>
+/* ---------- Darstellung in der Ebene (2D): Erkunden und Üben ----------
+   Koordinaten: x nach rechts, y nach oben, z aus der Ebene heraus (zum Betrachter).
+   Elektronenstrom (Standard, wie beim Hufeisenmagneten): F = −(I × B), Linke-Hand-Regel.
+   Technische Stromrichtung: F = I × B, Rechte-Hand-Regel. */
+(function(){
+'use strict';
+var $ = function(id){ return document.getElementById(id); };
+var app = $('app'), svg = $('pSvg'), ctrl = $('pCtrl');
+
+var DIRS = { u:[0,1,0], d:[0,-1,0], l:[-1,0,0], r:[1,0,0], out:[0,0,1], 'in':[0,0,-1] };
+var KEYS = ['u', 'd', 'l', 'r', 'in', 'out'];
+var NAME = { u:'nach oben', d:'nach unten', l:'nach links', r:'nach rechts', 'in':'in die Ebene hinein', out:'aus der Ebene heraus', zero:'keine Kraft' };
+var ICON = { u:'↑', d:'↓', l:'←', r:'→', 'in':'⊗', out:'⊙' };
+var COLV = { B:'var(--c2-b)', I:'var(--c2-i)', F:'var(--c2-f)' };
+var QN = { B:'Magnetfeld B', I:'Strom I', F:'Kraft F' };
+var QA = { B:'das Magnetfeld B', I:'der Strom I', F:'die Kraft F' };
+
+var st = { mode:'explore', sought:'rand', zero:true, tech:false, task:null, tries:0, done:false, wrong:{}, tip:false,
+           n:0, ok:0, ex:{ b:'in', i:'r' } };
+
+/* ---------- Physik ---------- */
+function cross(a, b){ return [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]]; }
+function keyOf(v){
+  for (var k in DIRS) { var d = DIRS[k]; if (d[0] === v[0] && d[1] === v[1] && d[2] === v[2]) return k; }
+  return null;   // Nullvektor
+}
+function force(i, b){
+  var c = cross(DIRS[i], DIRS[b]);
+  if (!st.tech) c = [-c[0], -c[1], -c[2]];
+  c = [c[0] + 0, c[1] + 0, c[2] + 0];   // −0 vermeiden
+  return keyOf(c);
+}
+function inPlane(k){ return k === 'u' || k === 'd' || k === 'l' || k === 'r'; }
+function horiz(k){ return k === 'l' || k === 'r'; }
+function rnd(a){ return a[Math.floor(Math.random() * a.length)]; }
+
+/* Lösung für die gesuchte Größe aus den beiden gegebenen (Probe über alle sechs Richtungen) */
+function solve(t, q){
+  if (q === 'F') return force(t.i, t.b) || 'zero';
+  var hits = KEYS.filter(function(k){ return q === 'I' ? force(k, t.b) === t.f : force(t.i, k) === t.f; });
+  return hits.length === 1 ? hits[0] : null;
+}
+
+function newTask(){
+  var prev = st.task, t, guard = 0;
+  do {
+    var q = st.sought === 'rand' ? rnd(['F', 'I', 'B']) : st.sought;
+    var i = rnd(KEYS), b;
+    if (q === 'F' && st.zero && Math.random() < 0.15) {
+      b = rnd([i, keyOf(DIRS[i].map(function(x){ return -x + 0; }))]);   // B parallel oder entgegengesetzt zu I
+    } else {
+      b = rnd(KEYS.filter(function(k){ return force(i, k) !== null; }));
+    }
+    t = { q:q, i:i, b:b, f:force(i, b) };
+    guard++;
+  } while (prev && guard < 30 && prev.q === t.q && prev.i === t.i && prev.b === t.b);
+  t.ans = t.q === 'F' ? (t.f || 'zero') : (t.q === 'I' ? t.i : t.b);
+  if (solve(t, t.q) !== t.ans) console.error('Aufgabe nicht eindeutig', t);
+  st.task = t; st.tries = 0; st.done = false; st.wrong = {}; st.tip = false;
+  render();
+}
+
+/* ---------- Zeichnen (SVG, 400 × 400) ---------- */
+var C = 200;
+function sty(col, w, fill){ return ' style="stroke:' + col + ';stroke-width:' + (w || 4) + ';fill:' + (fill || 'none') + ';stroke-linecap:round;stroke-linejoin:round"'; }
+function line(x1, y1, x2, y2, col, w){ return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"' + sty(col, w) + '/>'; }
+function vec(k){ var d = DIRS[k]; return [d[0], -d[1]]; }   // Bildschirmkoordinaten (y nach unten)
+function chevron(x, y, k, col){
+  var v = vec(k), p = [-v[1], v[0]], L = 13, W = 9;
+  return '<path d="M' + (x - v[0]*L + p[0]*W) + ' ' + (y - v[1]*L + p[1]*W) + ' L' + x + ' ' + y + ' L' + (x - v[0]*L - p[0]*W) + ' ' + (y - v[1]*L - p[1]*W) + '"' + sty(col, 4) + '/>';
+}
+function cross2(x, y, s, col, w){ return line(x - s, y - s, x + s, y + s, col, w) + line(x - s, y + s, x + s, y - s, col, w); }
+function dot(x, y, r, col){ return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" style="fill:' + col + '"/>'; }
+function ring(x, y, r, col, w){ return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '"' + sty(col, w || 4, 'var(--card)') + '/>'; }
+function symbol(x, y, r, k, col){
+  var s = ring(x, y, r, col, 4);
+  if (k === 'in') s += cross2(x, y, r * 0.42, col, 3.5);
+  else if (k === 'out') s += dot(x, y, r * 0.24, col);
+  return s;
+}
+function label(txt, x, y, col, arrow, italic){
+  var s = '<text x="' + x + '" y="' + (y + 9) + '" text-anchor="middle" style="fill:' + col + ';font:' + (italic ? 'italic 500 30px Georgia,\'Times New Roman\',serif' : '700 27px var(--sans)') + '">' + txt + '</text>';
+  if (arrow) s += line(x - 8, y - 17, x + 8, y - 17, col, 2.5) + '<path d="M' + (x + 3) + ' ' + (y - 21) + ' L' + (x + 9) + ' ' + (y - 17) + ' L' + (x + 3) + ' ' + (y - 13) + '"' + sty(col, 2.5) + '/>';
+  return s;
+}
+function arrow(x1, y1, x2, y2, col){
+  var dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, H = 20, W = 10;
+  var bx = x2 - ux * H, by = y2 - uy * H;
+  return line(x1, y1, bx, by, col, 5) + '<path d="M' + x2 + ' ' + y2 + ' L' + (bx - uy*W) + ' ' + (by + ux*W) + ' L' + (bx + uy*W) + ' ' + (by - ux*W) + ' Z" style="fill:' + col + '"/>';
+}
+
+/* show: welche Größen gezeichnet werden; axisOnly: Achse von B bzw. I zeigen, Richtung aber nicht */
+function draw(b, i, f, show){
+  var cB = COLV.B, cI = COLV.I, cF = COLV.F, out = [];
+  out.push('<rect x="2" y="2" width="396" height="396" rx="14" style="fill:var(--card);stroke:var(--line);stroke-width:2"/>');
+  var iH = inPlane(i) && horiz(i), iV = inPlane(i) && !horiz(i), iO = !inPlane(i);
+
+  /* Magnetfeld */
+  if (inPlane(b)) {
+    var bH = horiz(b), par = inPlane(i) && horiz(i) === bH;
+    var pos = par ? [62, 128, 272, 338] : [67, 200, 333];
+    pos.forEach(function(p){
+      if (bH) out.push(line(22, p, 378, p, cB, 4)); else out.push(line(p, 22, p, 378, cB, 4));
+      if (show.B) [110, 290].forEach(function(q){
+        var qq = bH ? q : 400 - q;
+        out.push(bH ? chevron(b === 'r' ? q + 6 : q - 6, p, b, cB) : chevron(p, b === 'u' ? qq - 6 : qq + 6, b, cB));
+      });
+    });
+    var a = pos[pos.length - 2], z = pos[pos.length - 1];
+    out.push('<!--Blab-->');
+    out.push(bH ? label('B', 335, (a + z) / 2, cB, true) : label('B', (a + z) / 2, 74, cB, true));
+  } else if (show.B) {
+    [50, 150, 250, 350].forEach(function(y){ [50, 150, 250, 350].forEach(function(x){
+      out.push(b === 'in' ? cross2(x, y, 10, cB, 4) : dot(x, y, 5, cB));
+    }); });
+    out.push(iO ? label('B', 300, 100, cB, true) : label('B', 100, 300, cB, true));
+  }
+
+  /* Leiter und Strom */
+  var P;   // Angriffspunkt der Kraft
+  if (iO) {
+    out.push(symbol(C, C, 25, show.I ? i : null, cI));
+    P = [C, C];
+    // Beschriftung I an eine freie Stelle neben dem Leiter (nicht auf B-Linie, nicht in Kraftrichtung)
+    var cand = [['u', C, 146], ['r', 252, C], ['d', C, 262], ['l', 148, C]];
+    var free = cand.filter(function(c){
+      if (inPlane(b) && horiz(b) === horiz(c[0])) return false;
+      if (f && inPlane(f) && show.F && c[0] === f) return false;
+      if (f && inPlane(f) && c[0] === f) return false;
+      return true;
+    });
+    var c0 = free[0] || cand[0];
+    out.push(label('I', c0[1], c0[2], cI, true));
+  } else {
+    if (iH) out.push(line(4, C, 396, C, cI, 4)); else out.push(line(C, 4, C, 396, cI, 4));
+    if (show.I) [110, 290].forEach(function(q){   // zwei Pfeile wie bei den Feldlinien
+      out.push(iH ? chevron(q + (i === 'r' ? 6 : -6), C, i, cI) : chevron(C, q + (i === 'u' ? -6 : 6), i, cI));
+    });
+    out.push(iH ? label('I', 100, 172, cI, true) : label('I', 226, 248, cI, true));
+    P = [C, C];
+  }
+
+  /* Kraft */
+  if (show.F && f) {
+    if (inPlane(f)) {
+      var v = vec(f), s0 = iO ? 27 : 0, L = iO ? 125 : 105;
+      var x1 = P[0] + v[0]*s0, y1 = P[1] + v[1]*s0, x2 = P[0] + v[0]*L, y2 = P[1] + v[1]*L;
+      out.push(arrow(x1, y1, x2, y2, cF));
+      var lx = x2 - v[0]*24 + (v[0] ? 0 : 24), ly = y2 - v[1]*24 + (v[0] ? -26 : 0);
+      out.push(label('F', lx, ly, cF, false, true));
+    } else {
+      // Kraft senkrecht zur Ebene: Symbol sitzt direkt auf dem Leiter (Angriffspunkt)
+      out.push(symbol(P[0], P[1], 19, f, cF));
+      out.push(label('F', P[0] + 36, P[1] - 30, cF, false, true));
+    }
+  }
+  svg.innerHTML = out.join('');
+}
+
+/* ---------- Texte ---------- */
+function zeigt(k){ return 'zeigt ' + NAME[k]; }
+function ruleText(t){
+  if (!t.f) return 'B und I liegen auf einer Linie (gleich oder entgegengesetzt gerichtet). Dann wirkt keine Lorentzkraft auf den Leiter.';
+  return (st.tech ? 'Rechte-Hand-Regel: Daumen (technische Stromrichtung I) ' : 'Linke-Hand-Regel: Daumen (Elektronenstrom I) ') +
+    zeigt(t.i) + ', Zeigefinger (Magnetfeld B) ' + zeigt(t.b) + ', Mittelfinger (Kraft F) ' + zeigt(t.f) + '.';
+}
+function tipText(t){
+  var h = st.tech ? 'rechte' : 'linke';
+  var base = 'Nimm die ' + h + ' Hand: Daumen = I, Zeigefinger = B, Mittelfinger = F (alle drei senkrecht zueinander). ';
+  if (t.q === 'F') return base + 'Prüfe zuerst, ob B und I überhaupt senkrecht zueinander stehen. Wenn ja: Daumen ' + zeigt(t.i) + ', Zeigefinger ' + zeigt(t.b) + '. Wohin zeigt der Mittelfinger?';
+  if (t.q === 'I') return base + 'Zeigefinger ' + zeigt(t.b) + ', Mittelfinger ' + zeigt(t.f) + '. Wohin zeigt der Daumen?';
+  return base + 'Daumen ' + zeigt(t.i) + ', Mittelfinger ' + zeigt(t.f) + '. Wohin zeigt der Zeigefinger?';
+}
+function qSpan(q){ return '<span style="color:' + COLV[q] + (q === 'F' ? ';font-style:italic;font-family:Georgia,serif' : '') + '">' + q + '</span>'; }
+
+/* ---------- Oberfläche ---------- */
+function btn(txt, cls, attrs){ return '<button type="button" class="btn ' + (cls || '') + '" ' + (attrs || '') + '>' + txt + '</button>'; }
+
+function render(){
+  if (st.mode === 'explore') return renderExplore();
+  var t = st.task;
+  if (!t) return newTask();
+  $('pTitle').innerHTML = 'Gesucht: ' + qSpan(t.q);
+  var reveal = st.done;
+  draw(t.b, t.i, t.f, { B:t.q !== 'B' || reveal, I:t.q !== 'I' || reveal, F:t.q !== 'F' || reveal });
+  var opts = KEYS.slice();
+  var h = '<div class="answers" role="group" aria-label="Richtung von ' + QN[t.q] + ' wählen">';
+  opts.forEach(function(k){
+    var cls = st.wrong[k] ? 'wrong' : (st.done && k === t.ans ? 'right' : '');
+    h += btn('<span class="ic" aria-hidden="true">' + ICON[k] + '</span><span>' + NAME[k] + '</span>', cls, 'data-a="' + k + '"' + (st.done || st.wrong[k] ? ' disabled' : ''));
+  });
+  if (t.q === 'F' && st.zero) {
+    var cz = st.wrong.zero ? 'wrong' : (st.done && t.ans === 'zero' ? 'right' : '');
+    h += btn('<span class="ic" aria-hidden="true">0</span><span>Es wirkt keine Kraft</span>', 'wide ' + cz, 'data-a="zero"' + (st.done || st.wrong.zero ? ' disabled' : ''));
+  }
+  h += '</div>';
+  var fb = '', fcls = 'fb';
+  if (st.done && st.lastOk) { fcls += ' ok'; fb = '<strong>Richtig!</strong><span class="ex">' + ruleText(t) + '</span>'; }
+  else if (st.done) { fb = '<strong>Lösung: ' + (t.ans === 'zero' ? 'Es wirkt keine Kraft.' : QN[t.q] + ' zeigt ' + NAME[t.ans] + '.') + '</strong><span class="ex">' + ruleText(t) + '</span>'; }
+  else if (st.tries > 0) { fcls += ' bad'; fb = '<strong>Leider falsch.</strong> Versuche es noch einmal.' + (st.tip ? '<span class="ex">' + tipText(t) + '</span>' : ''); }
+  else if (st.tip) { fb = '<span class="ex" style="margin:0">' + tipText(t) + '</span>'; }
+  else { fb = 'In welche Richtung zeigt ' + QA[t.q] + '? Wähle eine Antwort.'; }
+  h += '<div class="' + fcls + '" aria-live="polite">' + fb + '</div>';
+  h += '<div class="prow">';
+  if (!st.done) h += btn('Tipp', 'small', 'id="pTip"' + (st.tip ? ' disabled' : '')) + btn('Lösung zeigen', 'small', 'id="pShow"');
+  h += btn('Neue Aufgabe', st.done ? 'primary' : '', 'id="pNew"') + '</div>';
+  ctrl.innerHTML = h;
+  $('pScore').textContent = st.ok + ' von ' + st.n;
+}
+
+function renderExplore(){
+  var e = st.ex, f = force(e.i, e.b);
+  $('pTitle').innerHTML = 'Erkunden: Wähle ' + qSpan('B') + ' und ' + qSpan('I');
+  draw(e.b, e.i, f, { B:true, I:true, F:true });
+  function chips(q, cur){
+    return '<div class="chips ' + q.toLowerCase() + '" role="group" aria-label="Richtung ' + q + '">' + KEYS.map(function(k){
+      return btn(ICON[k] + ' ' + NAME[k], '', 'data-' + q.toLowerCase() + '="' + k + '" aria-pressed="' + (cur === k) + '"');
+    }).join('') + '</div>';
+  }
+  var h = '<div class="pick"><span class="lab" style="color:var(--c2-b)">B</span>' + chips('B', e.b) +
+          '<span class="lab" style="color:var(--c2-i)">I</span>' + chips('I', e.i) + '</div>';
+  h += '<div class="fb" aria-live="polite"><strong>Kraft ' + qSpan('F') + ': ' + (f ? NAME[f] : 'keine Kraft') + '</strong><span class="ex">' + ruleText({ i:e.i, b:e.b, f:f }) + '</span></div>';
+  ctrl.innerHTML = h;
+}
+
+ctrl.addEventListener('click', function(ev){
+  var b = ev.target.closest('button'); if (!b || b.disabled) return;
+  if (st.mode === 'explore') {
+    if (b.dataset.b) st.ex.b = b.dataset.b;
+    if (b.dataset.i) st.ex.i = b.dataset.i;
+    renderExplore(); return;
+  }
+  var t = st.task;
+  if (b.id === 'pNew') { newTask(); var f0 = ctrl.querySelector('[data-a]'); if (f0) f0.focus(); return; }
+  if (b.id === 'pTip') { st.tip = true; render(); return; }
+  if (b.id === 'pShow') {
+    if (st.tries === 0) st.n++;
+    st.done = true; st.lastOk = false; render(); $('pNew').focus(); return;
+  }
+  var a = b.dataset.a; if (!a || st.done) return;
+  var ok = a === t.ans;
+  if (st.tries === 0) { st.n++; if (ok) st.ok++; }
+  st.tries++;
+  if (ok) { st.done = true; st.lastOk = true; render(); $('pNew').focus(); }
+  else { st.wrong[a] = true; render(); }
+});
+
+/* ---------- Bedienfeld ---------- */
+function setPress(container, attr, val){
+  Array.prototype.forEach.call(container.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', String(x.dataset[attr] === val)); });
+}
+function setMode(m){
+  st.mode = m;
+  $('pmPractice').setAttribute('aria-pressed', String(m === 'practice'));
+  $('pmExplore').setAttribute('aria-pressed', String(m === 'explore'));
+  $('pSoughtBox').hidden = $('pScoreBox').hidden = m !== 'practice';
+  $('pmNote').textContent = m === 'practice'
+    ? 'Zwei der drei Größen B, I und F sind vorgegeben. Bestimme die Richtung der dritten.'
+    : 'Stelle die Richtungen von Magnetfeld und Strom selbst ein und beobachte die Kraft.';
+  render();
+}
+$('pmPractice').addEventListener('click', function(){ setMode('practice'); });
+$('pmExplore').addEventListener('click', function(){ setMode('explore'); });
+$('pSought').addEventListener('click', function(ev){
+  var b = ev.target.closest('button'); if (!b) return;
+  st.sought = b.dataset.s; setPress($('pSought'), 's', st.sought); newTask();
+});
+$('pZero').addEventListener('change', function(e){ st.zero = e.target.checked; newTask(); });
+function techNote(){
+  $('pTechNote').textContent = st.tech
+    ? 'Blau ist die technische Stromrichtung (von Plus nach Minus). Es gilt die Rechte-Hand-Regel: Daumen = I, Zeigefinger = B, Mittelfinger = F. Bei gleichem Bild zeigt die Kraft entgegengesetzt zur Linke-Hand-Regel mit Elektronenstrom.'
+    : 'Blau ist die Bewegungsrichtung der Elektronen (vom Minus- zum Pluspol). Es gilt die Linke-Hand-Regel wie beim Hufeisenmagneten: Daumen = I, Zeigefinger = B, Mittelfinger = F.';
+}
+if ($('pTech')) $('pTech').addEventListener('change', function(e){ st.tech = e.target.checked; techNote(); if (st.mode === 'practice') newTask(); else render(); });
+$('pReset').addEventListener('click', function(){ st.n = st.ok = 0; $('pScore').textContent = '0 von 0'; });
+
+/* Legende */
+(function(){
+  function mini(inner){ return '<svg viewBox="0 0 30 30" aria-hidden="true">' + inner + '</svg>'; }
+  var cB = COLV.B, cI = COLV.I, cF = COLV.F, rows = [
+    [mini(line(7, 7, 23, 23, cB, 3) + line(7, 23, 23, 7, cB, 3)), 'Magnetfeld zeigt in die Ebene hinein'],
+    [mini(dot(15, 15, 4, cB)), 'Magnetfeld zeigt aus der Ebene heraus'],
+    [mini(line(2, 15, 28, 15, cB, 3) + '<path d="M13 9 L19 15 L13 21"' + sty(cB, 3) + '/>'), 'Magnetfeldlinie in der Ebene'],
+    [mini('<circle cx="15" cy="15" r="11"' + sty(cI, 3) + '/>' + line(10, 10, 20, 20, cI, 2.5) + line(10, 20, 20, 10, cI, 2.5)), 'Strom fließt in die Ebene hinein'],
+    [mini('<circle cx="15" cy="15" r="11"' + sty(cI, 3) + '/>' + dot(15, 15, 3, cI)), 'Strom fließt aus der Ebene heraus'],
+    [mini(line(3, 15, 19, 15, cF, 4) + '<path d="M17 9 L28 15 L17 21 Z" style="fill:' + cF + '"/>'), 'Kraft auf den Leiter']
+  ];
+  $('pLegend').innerHTML = rows.map(function(r){ return r[0] + '<span>' + r[1] + '</span>'; }).join('');
+})();
+
+/* ---------- Umschalter Hufeisenmagnet / Ebene ---------- */
+var SUB3 = $('subText').textContent;
+var SUB2 = 'Leiter im Magnetfeld, Blick senkrecht auf die Ebene. Magnetfeld orange, Strom blau, Kraft violett.';
+/* Zustand zwischen Hufeisenmagnet und Ebene übernehmen.
+   Blick von vorn: x nach rechts, y nach oben, z zum Betrachter (= aus der Ebene heraus). */
+function from3d(){
+  var sim = window.__sim; if (!sim) return;
+  var d = sim.discrete();
+  st.ex.b = keyOf([Math.round(d.B.x) + 0, Math.round(d.B.y) + 0, 0]) || st.ex.b;
+  st.ex.i = sim.state.eDir > 0 ? 'out' : 'in';
+}
+function to3d(){
+  var sim = window.__sim; if (!sim) return false;
+  var e = st.ex;
+  if ((e.i !== 'in' && e.i !== 'out') || !inPlane(e.b)) return false;   // nur Leiter senkrecht zur Ebene und B in der Ebene passen zum Magneten
+  var s3 = sim.state, sg = s3.flipped ? -1 : 1, want = DIRS[e.b], cur = ((s3.thetaIdx % 4) + 4) % 4;
+  for (var k = 0; k < 4; k++) {
+    if ([1,0,-1,0][k] * sg === want[0] && [0,1,0,-1][k] * sg === want[1]) {
+      var dk = ((k - cur) % 4 + 4) % 4; if (dk === 3) dk = -1;
+      s3.thetaIdx += dk;
+      if (sim.anim) sim.anim.theta = s3.thetaIdx * Math.PI / 2;   // ohne Drehanimation übernehmen
+      break;
+    }
+  }
+  s3.eDir = e.i === 'out' ? 1 : -1;
+  sim.refresh();
+  return true;
+}
+var curView = null;
+function setView(v){
+  var two = v === '2d';
+  if (curView && curView !== v) { if (two) from3d(); else to3d(); }
+  curView = v;
+  app.classList.toggle('mode2d', two);
+  $('plane').hidden = !two;
+  $('panel3d').hidden = two; $('panel2d').hidden = !two;
+  $('mode3d').setAttribute('aria-pressed', String(!two));
+  $('mode2d').setAttribute('aria-pressed', String(two));
+  $('subText').textContent = two ? SUB2 : SUB3;
+  try { localStorage.setItem('lorentz-view', v); } catch (e) {}
+  if (two) render();
+}
+$('mode3d').addEventListener('click', function(){ setView('3d'); });
+$('mode2d').addEventListener('click', function(){ setView('2d'); });
+
+techNote();
+setMode('explore');
+var saved = null;
+try { saved = localStorage.getItem('lorentz-view'); } catch (e) {}
+setView(saved === '2d' ? '2d' : '3d');
+window.__plane = { from3d:from3d, to3d:to3d, st:st, force:force, solve:solve, newTask:newTask, draw:draw, setView:setView, render:render };
 })();
 </script>
 
