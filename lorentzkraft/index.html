@@ -1913,7 +1913,7 @@ var COLV = { B:'var(--c2-b)', I:'var(--c2-i)', F:'var(--c2-f)' };
 var QN = { B:'Magnetfeld B', I:'Strom I', F:'Kraft F' };
 var QA = { B:'das Magnetfeld B', I:'der Strom I', F:'die Kraft F' };
 
-var st = { mode:'explore', sought:'rand', zero:true, tech:false, task:null, tries:0, done:false, wrong:{}, tip:false,
+var st = { mode:'practice', sought:'rand', zero:true, tech:false, task:null, tries:0, done:false, wrong:{}, tip:false,
            n:0, ok:0, ex:{ b:'in', i:'r' } };
 
 /* ---------- Physik ---------- */
@@ -2232,7 +2232,7 @@ $('mode3d').addEventListener('click', function(){ setView('3d'); });
 $('mode2d').addEventListener('click', function(){ setView('2d'); });
 
 techNote();
-setMode('explore');
+setMode('practice');
 var saved = null;
 try { saved = localStorage.getItem('lorentz-view'); } catch (e) {}
 setView(saved === '2d' ? '2d' : '3d');
