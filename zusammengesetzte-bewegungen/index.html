@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zusammengesetzte Bewegungen</title>
+<style>
+/* Layout wie Lorentzkraft: Ansicht links (Umschalter oben links), einklappbares Bedienfeld rechts (auf dem Handy darunter). */
+:root{
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --bg:#f2f4f8; --panel:#ffffff; --fg:#1a2230; --muted:#5a6578; --line:#d8dee8;
+  --chip:#f3f5f9; --chip-hover:#e8edf5; --accent:#2b5fd9; --off:#b4bdcc;
+  --scene-bg:#e9eef5; --card:#ffffff;
+  /* Farbcodierung wie im Heft: Teilbewegungen blau, Gesamtgeschwindigkeit grün, Gesamtweg violett */
+  --c-t1:#1f5fd0; --c-t2:#1592b8; --c-v:#1d7f45; --c-s:#7a3db8;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1319; --panel:#171c24; --fg:#e6eaf1; --muted:#9aa5b6; --line:#2b3340;
+    --chip:#1f2630; --chip-hover:#2a3340; --accent:#6b9bff; --off:#46505f;
+    --scene-bg:#10141b; --card:#1a2029;
+    --c-t1:#6ea2ff; --c-t2:#4fc6e8; --c-v:#5cc97c; --c-s:#c39bf0; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1319; --panel:#171c24; --fg:#e6eaf1; --muted:#9aa5b6; --line:#2b3340;
+  --chip:#1f2630; --chip-hover:#2a3340; --accent:#6b9bff; --off:#46505f;
+  --scene-bg:#10141b; --card:#1a2029;
+  --c-t1:#6ea2ff; --c-t2:#4fc6e8; --c-v:#5cc97c; --c-s:#c39bf0; color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans);overflow:hidden}
+.app{display:flex;height:100%;min-height:0}
+.stage{position:relative;flex:1;min-width:0;background:var(--scene-bg);display:flex;flex-direction:column;min-height:0}
+.scene{position:relative;flex:1 1 auto;min-height:240px}
+.scene canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.panel{width:360px;flex:none;overflow-y:auto;background:var(--panel);border-left:1px solid var(--line);
+  padding-block:18px 28px;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:20px;min-width:0}
+.app.collapsed .panel{display:none}
+h1{font-size:19px;line-height:1.25;margin:0;font-weight:600;text-wrap:balance}
+.sub{margin:4px 0 0;color:var(--muted);font-size:13px}
+h2{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:600}
+section{min-width:0}
+.sw{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 0;position:relative}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.track{width:38px;height:22px;border-radius:11px;background:var(--off);position:relative;flex:none;transition:background .15s}
+.track::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw input:checked + .track{background:var(--accent)}
+.sw input:checked + .track::after{transform:translateX(16px)}
+.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-weight:500;padding:8px 12px;border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:8px;cursor:pointer;min-height:38px}
+.btn:hover{background:var(--chip-hover)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.small{padding:6px 10px;min-height:32px;font-size:13px;background:var(--panel)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;min-width:96px}
+.btn.primary:hover{filter:brightness(1.08);background:var(--accent)}
+.note{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.note b{color:var(--fg);font-weight:500}
+
+/* Umschalter oben links */
+.topbar{position:absolute;top:12px;left:max(12px,env(safe-area-inset-left,0px));right:12px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;z-index:2;pointer-events:none}
+.topbar > *{pointer-events:auto}
+.viewbtns{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-left:auto}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:2px;gap:2px;flex:none;max-width:100%}
+.seg button{font:inherit;font-size:13px;font-weight:500;border:0;background:transparent;color:var(--muted);padding:6px 11px;border-radius:7px;cursor:pointer;min-height:30px;text-align:left}
+.seg button:hover{color:var(--fg);background:var(--chip)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.seg.two button{line-height:1.2;padding:5px 11px}
+.seg.two button small{display:block;font-size:11px;font-weight:400;opacity:.85}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips .btn{min-height:34px;padding:5px 10px;font-size:13px}
+.chips .btn[aria-pressed="true"]{color:#fff;border-color:transparent;background:var(--accent)}
+
+/* Regler */
+.slider{display:grid;gap:4px;margin-bottom:12px}
+.slider .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.slider .lab{font-weight:500}
+.slider .val{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.slider input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.slider.t1 .lab b{color:var(--c-t1)} .slider.t2 .lab b{color:var(--c-t2)}
+.slider.t1 input{accent-color:var(--c-t1)} .slider.t2 input{accent-color:var(--c-t2)}
+
+/* Untere Leiste: Diagramme und Formeln */
+.dash{flex:none;display:flex;gap:10px;padding:0 12px 12px;padding-left:max(12px,env(safe-area-inset-left,0px));height:230px;min-height:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;min-width:0;margin:0}
+.card figcaption{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.card .cv{position:relative;flex:1;min-height:0}
+.card canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.dash .diag{flex:1 1 0}
+.formulas{flex:0 1 460px;overflow:auto;gap:6px}
+.fl{font-size:16px;line-height:1.5;font-family:var(--sans)}
+.fl.v{color:var(--c-v);font-weight:600}
+.fl.s{color:var(--c-s);font-weight:600}
+.fl.part{font-size:14px;color:var(--fg)}
+.fl.part .p1{color:var(--c-t1)} .fl.part .p2{color:var(--c-t2)}
+.fl .num{font-family:var(--sans);font-variant-numeric:tabular-nums}
+.fsmall{font-size:12.5px;color:var(--muted)}
+.sqrt{display:inline-flex;align-items:stretch}
+.sqrt::before{content:"√";padding-right:1px}
+.sqrt > span{border-top:1.5px solid currentColor;padding:0 2px}
+.tline{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--muted)}
+.tline b{font-family:var(--mono);color:var(--fg);font-weight:500;font-size:14px}
+
+@media (max-width:820px){
+  body{overflow:auto}
+  .app{flex-direction:column;height:auto;min-height:100%}
+  .stage{flex:none}
+  .topbar{position:relative;top:auto;left:auto;right:auto;padding:12px 12px 0}
+  .scene{flex:none;height:46vh;height:46dvh}
+  .dash{flex-wrap:wrap;height:auto}
+  .dash .diag{flex:1 1 45%;height:170px}
+  .formulas{flex:1 1 100%}
+  .panel{width:auto;border-left:0;border-top:1px solid var(--line);overflow:visible}
+}
+@media (prefers-reduced-motion: reduce){.track,.track::after{transition:none}}
+</style>
+</head>
+<body>
+<main class="app" id="app">
+  <section class="stage" id="stage" aria-label="Ansicht der Bewegung">
+    <div class="topbar">
+      <div class="seg two" role="group" aria-label="Bereich wählen" id="bereiche"></div>
+      <div class="viewbtns">
+        <button class="btn small" id="togglePanel" type="button" aria-expanded="true" aria-controls="panel">Einstellungen ausblenden</button>
+        <button class="btn small" id="theme" type="button" title="Hell/Dunkel umschalten">Hell</button>
+      </div>
+    </div>
+    <div class="scene" id="sceneBox"><canvas id="cScene" role="img" aria-label="Animierte Szene"></canvas></div>
+    <div class="dash">
+      <figure class="card diag"><figcaption>Geschwindigkeiten</figcaption><div class="cv"><canvas id="cV" role="img" aria-label="Geschwindigkeitspfeile"></canvas></div></figure>
+      <figure class="card diag"><figcaption id="capS">Wege</figcaption><div class="cv"><canvas id="cS" role="img" aria-label="Wegpfeile"></canvas></div></figure>
+      <div class="card formulas" id="formulas" aria-live="off"></div>
+    </div>
+  </section>
+
+  <aside class="panel" id="panel" aria-label="Bedienfeld">
+    <header>
+      <h1>Zusammengesetzte Bewegungen</h1>
+      <p class="sub" id="subText"></p>
+    </header>
+
+    <section>
+      <h2>Sachkontext</h2>
+      <div class="chips" id="kontexte"></div>
+      <p class="note" id="intro"></p>
+    </section>
+
+    <section>
+      <h2>Teilbewegungen</h2>
+      <div class="slider t1">
+        <div class="top"><span class="lab" id="l1"></span><span class="val" id="o1"></span></div>
+        <input type="range" id="r1">
+      </div>
+      <div class="slider t2">
+        <div class="top"><span class="lab" id="l2"></span><span class="val" id="o2"></span></div>
+        <input type="range" id="r2">
+      </div>
+    </section>
+
+    <section>
+      <h2>Ablauf</h2>
+      <div class="row">
+        <button class="btn primary" id="play" type="button">▶ Start</button>
+        <button class="btn" id="reset" type="button">↺ Zurücksetzen</button>
+      </div>
+      <div class="slider" style="margin-top:12px">
+        <div class="top"><span class="lab">Zeit t</span><span class="val" id="oT"></span></div>
+        <input type="range" id="rT" min="0" max="1000" step="1" value="0">
+      </div>
+      <div class="top" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="note" style="margin:0">Zeitraffer</span>
+        <div class="chips" id="speeds">
+          <button class="btn" type="button" data-f="1" aria-pressed="true">1×</button>
+          <button class="btn" type="button" data-f="2" aria-pressed="false">2×</button>
+          <button class="btn" type="button" data-f="5" aria-pressed="false">5×</button>
+        </div>
+      </div>
+      <p class="note">Tasten: Leertaste = Start/Pause, R = zurücksetzen.</p>
+    </section>
+
+    <section>
+      <h2>Anzeigen</h2>
+      <label class="sw"><input type="checkbox" id="tArrows" checked><span class="track"></span><span class="dot" style="background:var(--c-v)"></span>Geschwindigkeitspfeile am Körper</label>
+      <label class="sw"><input type="checkbox" id="tTrail" checked><span class="track"></span><span class="dot" style="background:var(--c-s)"></span>Weg-Spur</label>
+      <label class="sw"><input type="checkbox" id="tHelp" checked><span class="track"></span><span class="dot" style="background:var(--c-t1)"></span>Teilwege (gestrichelte Hilfslinien)</label>
+      <label class="sw" id="ghostRow"><input type="checkbox" id="tGhost"><span class="track"></span><span class="dot" style="background:var(--muted)"></span>Schatten: nur Teilbewegung 1</label>
+    </section>
+
+    <section>
+      <h2>Merke</h2>
+      <p class="note" style="margin-top:0">Mehrere Teilbewegungen überlagern sich zu einer <b>Gesamtbewegung</b>. Teilbewegungen können gleichförmig oder beschleunigt sein, hier sind beide <b>gleichförmig</b> (s = v · t).</p>
+      <p class="note"><span style="color:var(--c-t1);font-weight:600">Blau</span>: Teilbewegungen · <span style="color:var(--c-v);font-weight:600">Grün</span>: Gesamtgeschwindigkeit v · <span style="color:var(--c-s);font-weight:600">Violett</span>: Gesamtweg s</p>
+    </section>
+  </aside>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* ============================================================
+   Bereiche und Sachkontexte
+   Neuer Bereich: Eintrag in BEREICHE ergänzen (art "1d" = auf einer Geraden,
+   "2d" = in der Ebene). Neuer Sachkontext: Eintrag in kontexte mit eigener Szene.
+   ============================================================ */
+const BEREICHE = [
+  { id:"gleich", kopf:"Teilbewegungen (gleichförmig)", name:"in gleicher Richtung", art:"1d", d:[1, 1],
+    regel:"v = v₁ + v₂ und s = s₁ + s₂",
+    kontexte:[
+      { id:"autos", name:"Autos: Überholvorgang", szene:"strasse", L:400, tMax:30, kmh:true,
+        intro:"Ein Pkw überholt einen Lkw. Der Lkw fährt gegenüber der Straße mit v₁, der Pkw ist gegenüber dem Lkw um v₂ schneller. Gesamtbewegung: der Pkw gegenüber der Straße.",
+        v1:{ name:"Lkw gegenüber der Straße", min:10, max:25, step:0.5, def:20 },
+        v2:{ name:"Pkw gegenüber dem Lkw", min:1, max:10, step:0.5, def:5 },
+        start:{ obj:20, traeger:50 } },
+      { id:"schwimmer", name:"Schwimmer mit der Strömung", szene:"fluss1d", L:60, tMax:200,
+        intro:"Ein Schwimmer schwimmt in Strömungsrichtung. Er schwimmt gegenüber dem Wasser mit v₁, das Wasser fließt gegenüber dem Ufer mit v₂. Gesamtbewegung: der Schwimmer gegenüber dem Ufer.",
+        v1:{ name:"Schwimmer gegenüber dem Wasser", min:0.2, max:2, step:0.05, def:1 },
+        v2:{ name:"Strömung gegenüber dem Ufer", min:0, max:1.5, step:0.05, def:0.5 } },
+      { id:"laufband", name:"Laufband am Flughafen", szene:"band", L:50, tMax:200,
+        intro:"Eine Person läuft auf dem Laufband in Bandrichtung. Sie läuft gegenüber dem Band mit v₁, das Band bewegt sich gegenüber dem Boden mit v₂. Gesamtbewegung: die Person gegenüber dem Boden.",
+        v1:{ name:"Person gegenüber dem Band", min:0.2, max:2, step:0.05, def:1 },
+        v2:{ name:"Laufband gegenüber dem Boden", min:0.2, max:1.2, step:0.05, def:0.6 } }
+    ] },
+  { id:"entgegen", kopf:"Teilbewegungen (gleichförmig)", name:"in entgegengesetzter Richtung", art:"1d", d:[1, -1],
+    regel:"v = v₁ − v₂ und s = s₁ − s₂",
+    kontexte:[
+      { id:"autos", name:"Autos: Pkw fällt zurück", szene:"strasse", L:400, tMax:30, kmh:true,
+        intro:"Ein Pkw fährt neben einem Lkw und lässt sich zurückfallen. Der Lkw fährt gegenüber der Straße mit v₁ nach rechts, der Pkw bewegt sich gegenüber dem Lkw mit v₂ nach hinten. Gesamtbewegung: der Pkw gegenüber der Straße.",
+        v1:{ name:"Lkw gegenüber der Straße", min:15, max:25, step:0.5, def:20 },
+        v2:{ name:"Pkw gegenüber dem Lkw (nach hinten)", min:1, max:10, step:0.5, def:4 },
+        start:{ obj:75, traeger:35 } },
+      { id:"schwimmer", name:"Schwimmer gegen die Strömung", szene:"fluss1d", L:60, tMax:200,
+        intro:"Ein Schwimmer schwimmt gegen die Strömung. Er schwimmt gegenüber dem Wasser mit v₁ nach rechts, das Wasser fließt mit v₂ nach links. Ist die Strömung schneller, treibt er trotz Schwimmens zurück.",
+        v1:{ name:"Schwimmer gegenüber dem Wasser", min:0.2, max:2, step:0.05, def:1.2 },
+        v2:{ name:"Strömung gegenüber dem Ufer", min:0, max:1.5, step:0.05, def:0.5 } },
+      { id:"laufband", name:"Gegen das Laufband laufen", szene:"band", L:50, tMax:200,
+        intro:"Eine Person läuft auf dem Laufband gegen die Bandrichtung. Sie läuft gegenüber dem Band mit v₁ nach rechts, das Band bewegt sich mit v₂ nach links.",
+        v1:{ name:"Person gegenüber dem Band", min:0.2, max:2, step:0.05, def:1.2 },
+        v2:{ name:"Laufband gegenüber dem Boden", min:0.2, max:1.2, step:0.05, def:0.6 } }
+    ] },
+  { id:"senkrecht", kopf:"Teilbewegungen (gleichförmig)", name:"senkrecht zueinander", art:"2d",
+    regel:"v = √(v₁² + v₂²) und s = √(s₁² + s₂²)",
+    kontexte:[
+      { id:"fluss", name:"Schwimmer quer zur Strömung", szene:"fluss2d", Ly:30, tMax:200,
+        intro:"Ein Schwimmer schwimmt quer zur Strömung zum anderen Ufer. Die Strömung treibt ihn mit v₁ nach rechts, er selbst schwimmt mit v₂ quer über den Fluss. Er kommt schräg versetzt drüben an.",
+        v1:{ name:"Strömung (nach rechts)", min:0, max:1.5, step:0.05, def:0.5 },
+        v2:{ name:"Schwimmer quer zum Fluss", min:0.2, max:2, step:0.05, def:1 } },
+      { id:"kran", name:"Lastenkran", szene:"kran", Ly:16, tMax:200,
+        intro:"Die Laufkatze eines Krans fährt mit v₁ nach rechts, gleichzeitig wird die Last mit v₂ abgesenkt. Die Last bewegt sich schräg nach unten.",
+        v1:{ name:"Laufkatze (nach rechts)", min:0.1, max:1.5, step:0.05, def:0.6 },
+        v2:{ name:"Absenken der Last", min:0.1, max:1, step:0.05, def:0.4 } },
+      { id:"fallschirm", name:"Luftlandung bei Wind", szene:"fallschirm", Ly:120, tMax:200,
+        intro:"Ein Fallschirmspringer sinkt gleichmäßig mit v₂ nach unten, der Wind treibt ihn mit v₁ nach rechts. Er landet ein Stück versetzt.",
+        v1:{ name:"Wind (nach rechts)", min:0, max:8, step:0.1, def:3 },
+        v2:{ name:"Sinken (nach unten)", min:2, max:7, step:0.1, def:5 } }
+    ] }
+];
+
+/* ---------- Zustand ---------- */
+const S = { b:0, k:[0,0,0], vals:{}, t:0, running:false, speed:1, last:0 };
+const bereich = () => BEREICHE[S.b];
+const kontext = () => bereich().kontexte[S.k[S.b]];
+const key = () => bereich().id + "/" + kontext().id;
+function vals(){ const k = kontext(); return S.vals[key()] || (S.vals[key()] = { v1:k.v1.def, v2:k.v2.def }); }
+
+/* ---------- Zahlen ---------- */
+function fmt(x, d){
+  if (Math.abs(x) < 0.5 * Math.pow(10, -d)) x = 0;
+  return x.toFixed(d).replace(".", ",").replace("-", "−");
+}
+const dV = v => (v >= 10 ? 1 : 2);
+const fv = v => fmt(v, dV(Math.abs(v))) + " m/s";
+const fs = s => fmt(s, 1) + " m";
+const ft = t => fmt(t, 1) + " s";
+
+/* ---------- Bewegung ---------- */
+function kin(){
+  const b = bereich(), k = kontext(), { v1, v2 } = vals(), t = S.t;
+  if (b.art === "1d"){
+    const d1 = b.d[0], d2 = b.d[1];
+    const v = d1 * v1 + d2 * v2;           // vorzeichenbehaftet (rechts positiv)
+    return { art:"1d", v1, v2, d1, d2, v, s1:v1 * t, s2:v2 * t, s:v * t, t };
+  }
+  const v = Math.hypot(v1, v2);
+  return { art:"2d", v1, v2, v, s1:v1 * t, s2:v2 * t, s:v * t, t };
+}
+
+/* Startlage und Endzeit (der Körper soll im Bild bleiben) */
+let geo2d = null; // wird beim Zeichnen gesetzt (Weltgröße in der Ebene)
+function startX1d(){
+  const k = kontext(), m = kin();
+  if (k.start) return k.start.obj;
+  return m.v >= 0 ? 0.1 * k.L : 0.88 * k.L;
+}
+function tEnd(){
+  const k = kontext(), m = kin();
+  const lim = (x0, v, lo, hi) => v > 1e-9 ? (hi - x0) / v : v < -1e-9 ? (lo - x0) / v : Infinity;
+  let te = k.tMax;
+  if (m.art === "1d"){
+    te = Math.min(te, lim(startX1d(), m.v, 0.03 * k.L, 0.97 * k.L));
+    if (k.start) te = Math.min(te, lim(k.start.traeger, m.d1 * m.v1, 0.03 * k.L, 0.95 * k.L));
+  } else if (geo2d){
+    te = Math.min(te, lim(geo2d.x0, m.v1, 0, geo2d.Lx * 0.96), lim(geo2d.y0, m.v2, 0, geo2d.yEnd));
+  }
+  return Math.max(te, 0.1);
+}
+
+/* ============================================================
+   Zeichenhilfen
+   ============================================================ */
+let C = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  const dark = document.documentElement.dataset.theme !== "light";
+  C = { dark, fg:g("--fg"), muted:g("--muted"), line:g("--line"), bg:g("--scene-bg"), card:g("--card"),
+        t1:g("--c-t1"), t2:g("--c-t2"), v:g("--c-v"), s:g("--c-s"),
+        grass: dark ? "#1d3a26" : "#a9d39a", grass2: dark ? "#183020" : "#93c585",
+        road: dark ? "#2e343d" : "#6f7680", mark: dark ? "#c9ced6" : "#ffffff",
+        water: dark ? "#16405f" : "#6fb6e6", water2: dark ? "#1b4c70" : "#86c3ec", foam: dark ? "rgba(200,230,255,.35)" : "rgba(255,255,255,.75)",
+        sand: dark ? "#5b4e36" : "#e3d1a3", floor: dark ? "#272d36" : "#d7dce4", floor2: dark ? "#313844" : "#c8ced8",
+        belt: dark ? "#41464f" : "#555b66", belt2: dark ? "#5a606b" : "#7b828e", metal: dark ? "#8b95a5" : "#5f6875",
+        sky1: dark ? "#0f1a2c" : "#bfe0fb", sky2: dark ? "#1c2c45" : "#e9f4fe", cloud: dark ? "rgba(180,195,220,.18)" : "rgba(255,255,255,.9)",
+        skin: "#e0aa7c", truck: dark ? "#c7cdd6" : "#eef1f5", truckCab:"#d9534f", car:"#2e8bd8", car2:"#f0a030",
+        steel: dark ? "#e0a32e" : "#e8a20c" };
+}
+
+function setupCanvas(cv){
+  const r = cv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(10, Math.round(r.width)), h = Math.max(10, Math.round(r.height));
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+
+function arrow(ctx, x1, y1, x2, y2, col, lw = 3, dash = null){
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+  if (len < 1.5) return;
+  const ux = dx / len, uy = dy / len, hl = Math.min(len * 0.6, 8 + lw * 2.2), hw = hl * 0.5;
+  ctx.save();
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw; ctx.lineCap = "round";
+  if (dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - ux * hl * 0.8, y2 - uy * hl * 0.8); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - ux * hl - uy * hw, y2 - uy * hl + ux * hw);
+  ctx.lineTo(x2 - ux * hl + uy * hw, y2 - uy * hl - ux * hw); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function line(ctx, x1, y1, x2, y2, col, lw = 1.5, dash = null){
+  ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function text(ctx, s, x, y, col, size = 14, align = "left", base = "middle", weight = 600, halo = true){
+  ctx.save(); ctx.font = weight + " " + size + "px " + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = align; ctx.textBaseline = base;
+  if (halo){ ctx.lineWidth = 4; ctx.strokeStyle = C.dark ? "rgba(10,14,20,.75)" : "rgba(255,255,255,.85)"; ctx.lineJoin = "round"; ctx.strokeText(s, x, y); }
+  ctx.fillStyle = col; ctx.fillText(s, x, y); ctx.restore();
+}
+function rrect(ctx, x, y, w, h, r){ ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+function hash(i){ const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p; }
+
+/* ---------- Figuren ---------- */
+function drawCar(ctx, x, y, w, col, dir = 1){
+  const h = w * 0.42;
+  ctx.save(); ctx.translate(x, y); ctx.scale(dir, 1);
+  ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(0, h * 0.5, w * 0.5, h * 0.12, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.moveTo(-w * 0.27, -h * 0.12); ctx.lineTo(-w * 0.16, -h * 0.58); ctx.lineTo(w * 0.14, -h * 0.58); ctx.lineTo(w * 0.3, -h * 0.12); ctx.closePath(); ctx.fill();
+  rrect(ctx, -w / 2, -h * 0.15, w, h * 0.5, 6); ctx.fill();
+  ctx.fillStyle = C.dark ? "#a9c8e8" : "#d8ecfb";
+  ctx.beginPath(); ctx.moveTo(-w * 0.21, -h * 0.15); ctx.lineTo(-w * 0.13, -h * 0.5); ctx.lineTo(-w * 0.02, -h * 0.5); ctx.lineTo(-w * 0.02, -h * 0.15); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(w * 0.02, -h * 0.15); ctx.lineTo(w * 0.02, -h * 0.5); ctx.lineTo(w * 0.12, -h * 0.5); ctx.lineTo(w * 0.24, -h * 0.15); ctx.fill();
+  ctx.fillStyle = "#ffe08a"; ctx.fillRect(w * 0.44, -h * 0.05, w * 0.06, h * 0.12);
+  ctx.fillStyle = "#1b1f25";
+  for (const wx of [-w * 0.29, w * 0.29]){ ctx.beginPath(); ctx.arc(wx, h * 0.35, h * 0.2, 0, 7); ctx.fill(); }
+  ctx.fillStyle = "#9aa3ae";
+  for (const wx of [-w * 0.29, w * 0.29]){ ctx.beginPath(); ctx.arc(wx, h * 0.35, h * 0.08, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function drawTruck(ctx, x, y, w){
+  const h = w * 0.36;
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(0, h * 0.55, w * 0.5, h * 0.1, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = C.truck; ctx.strokeStyle = C.dark ? "#59606b" : "#a7afba"; ctx.lineWidth = 1.5;
+  rrect(ctx, -w / 2, -h * 0.55, w * 0.74, h * 0.95, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C.truckCab; rrect(ctx, w * 0.27, -h * 0.3, w * 0.23, h * 0.7, 5); ctx.fill();
+  ctx.fillStyle = C.dark ? "#a9c8e8" : "#d8ecfb"; rrect(ctx, w * 0.38, -h * 0.22, w * 0.1, h * 0.25, 3); ctx.fill();
+  ctx.fillStyle = "#1b1f25";
+  for (const wx of [-w * 0.4, -w * 0.3, w * 0.05, w * 0.38]){ ctx.beginPath(); ctx.arc(wx, h * 0.42, h * 0.15, 0, 7); ctx.fill(); }
+  text(ctx, "LKW", -w * 0.13, -h * 0.08, C.dark ? "#59606b" : "#a7afba", 13, "center", "middle", 700, false);
+  ctx.restore();
+}
+function drawSwimmer(ctx, x, y, ang, phase, size = 1){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(size, size);
+  ctx.fillStyle = C.foam; ctx.beginPath(); ctx.ellipse(-4, 0, 26, 11, 0, 0, 7); ctx.fill();
+  const a = Math.sin(phase * 2 * Math.PI);
+  ctx.strokeStyle = C.skin; ctx.lineWidth = 4; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(6, -5); ctx.lineTo(6 + 14 * Math.cos(a), -5 - 9 - 4 * a); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, 5); ctx.lineTo(6 + 14 * Math.cos(-a), 5 + 9 - 4 * a); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-14, -3); ctx.lineTo(-24, -4 + 3 * a); ctx.moveTo(-14, 3); ctx.lineTo(-24, 4 - 3 * a); ctx.stroke();
+  ctx.fillStyle = "#d9534f"; ctx.beginPath(); ctx.ellipse(-3, 0, 13, 6.5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#f0c419"; ctx.beginPath(); ctx.arc(13, 0, 6, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawPerson(ctx, x, y, phase, dir = 1, size = 1){
+  ctx.save(); ctx.translate(x, y); ctx.scale(dir * size, size);
+  const a = Math.sin(phase * 2 * Math.PI) * 0.55;
+  ctx.strokeStyle = C.dark ? "#d9dee6" : "#2a3140"; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const hip = [0, -30], sh = [2, -56];
+  const leg = s => { ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(Math.sin(s) * 15, -15 + Math.abs(Math.sin(s)) * 2); ctx.lineTo(Math.sin(s) * 30 * 0.55 + (s > 0 ? 3 : 0), 0); ctx.stroke(); };
+  leg(a); leg(-a);
+  ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(sh[0], sh[1]); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sh[0], sh[1] + 3); ctx.lineTo(sh[0] + Math.sin(-a) * 14, sh[1] + 22); ctx.stroke();
+  ctx.fillStyle = "#3d7be0"; rrect(ctx, -6, -56, 12, 26, 4); ctx.fill();
+  ctx.fillStyle = C.skin; ctx.beginPath(); ctx.arc(3, -66, 8, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+/* ============================================================
+   Szenen
+   ============================================================ */
+function sceneRect(w, h){ const top = window.matchMedia("(max-width:820px)").matches ? 10 : 66; return { x:0, y:top, w, h:h - top }; }
+
+/* --- 1D: gemeinsamer Rahmen --- */
+function draw1d(ctx, w, h){
+  const k = kontext(), m = kin(), R = sceneRect(w, h);
+  const padL = 34, padR = 34, sc = (R.w - padL - padR) / k.L;
+  const X = xw => R.x + padL + xw * sc;
+  const x0 = startX1d(), xObj = x0 + m.s;
+  const cy = R.y + R.h * 0.5;
+  let objY, objDraw, ghostDraw;
+
+  if (k.szene === "strasse"){
+    const rh = Math.min(150, R.h * 0.46), top = cy - rh / 2 + 18;
+    ctx.fillStyle = C.grass; ctx.fillRect(0, R.y, w, h - R.y);
+    ctx.fillStyle = C.road; ctx.fillRect(0, top, w, rh);
+    line(ctx, 0, top + 4, w, top + 4, C.mark, 2); line(ctx, 0, top + rh - 4, w, top + rh - 4, C.mark, 2);
+    line(ctx, 0, top + rh / 2, w, top + rh / 2, C.mark, 2.5, [26, 22]);
+    // Leitpfosten (ruhen gegenüber der Straße)
+    const step = niceStep(k.L / 8);
+    for (let xw = 0; xw <= k.L; xw += step / 2){
+      const px = X(xw); ctx.fillStyle = C.dark ? "#cfd5de" : "#fff"; ctx.fillRect(px - 2, top + rh + 6, 4, 14);
+      ctx.fillStyle = "#222"; ctx.fillRect(px - 2, top + rh + 8, 4, 3);
+    }
+    const yTruck = top + rh * 0.74, yCar = top + rh * 0.27;
+    const xT = k.start.traeger + m.d1 * m.v1 * m.t;
+    const carW = Math.max(48, Math.min(70, R.w * 0.06)), truckW = carW * 2.1;
+    drawTruck(ctx, X(xT), yTruck, truckW);
+    if (S.show.arrows) { arrow(ctx, X(xT) - truckW * 0.25, yTruck - truckW * 0.28, X(xT) - truckW * 0.25 + m.d1 * m.v1 * kObj(), yTruck - truckW * 0.28, C.t1, 3); text(ctx, "v₁", X(xT) - truckW * 0.25 + m.d1 * m.v1 * kObj() + 6, yTruck - truckW * 0.28, C.t1, 15); }
+    objY = yCar;
+    objDraw = (xp, alpha) => { ctx.save(); ctx.globalAlpha = alpha; drawCar(ctx, xp, yCar, carW, C.car); ctx.restore(); };
+    ghostDraw = null;
+  } else if (k.szene === "fluss1d"){
+    const wh = Math.min(170, R.h * 0.5), top = cy - wh / 2;
+    ctx.fillStyle = C.sand; ctx.fillRect(0, R.y, w, h - R.y);
+    ctx.fillStyle = C.grass; ctx.fillRect(0, R.y, w, top - 14 - R.y); ctx.fillRect(0, top + wh + 14, w, h);
+    ctx.fillStyle = C.water; ctx.fillRect(0, top, w, wh);
+    // Strömung: Wellenstriche bewegen sich mit v₂
+    const off = m.d2 * m.v2 * m.t * sc, sp = 70;
+    ctx.strokeStyle = C.foam; ctx.lineWidth = 2; ctx.lineCap = "round";
+    for (let i = -2; i < w / sp + 3; i++){
+      for (let j = 0; j < 4; j++){
+        const yy = top + wh * (0.14 + 0.24 * j) + (hash(i * 7 + j) - 0.5) * 10;
+        let xx = ((i * sp + hash(i + j * 13) * sp + off) % (w + 3 * sp) + (w + 3 * sp)) % (w + 3 * sp) - sp;
+        ctx.beginPath(); ctx.moveTo(xx, yy); ctx.quadraticCurveTo(xx + 9, yy - 4, xx + 18, yy); ctx.quadraticCurveTo(xx + 27, yy + 4, xx + 36, yy); ctx.stroke();
+      }
+    }
+    if (S.show.arrows){ const ax = 24, ay = top + wh - 16; arrow(ctx, w / 2 - m.d2 * m.v2 * kObj() / 2, ay, w / 2 + m.d2 * m.v2 * kObj() / 2, ay, C.t2, 3); text(ctx, "v₂ (Strömung)", w / 2 + Math.abs(m.v2 * kObj()) / 2 + 8, ay, C.t2, 13); }
+    objY = top + wh * 0.42;
+    const ph = m.v1 * m.t * 0.9;
+    objDraw = (xp, alpha) => { ctx.save(); ctx.globalAlpha = alpha; drawSwimmer(ctx, xp, objY, m.d1 > 0 ? 0 : Math.PI, ph, 1.3); ctx.restore(); };
+  } else { // band
+    const fy = cy + 50;
+    ctx.fillStyle = C.floor; ctx.fillRect(0, R.y, w, h - R.y);
+    ctx.fillStyle = C.floor2; for (let xw = 0; xw <= k.L + 1; xw += 2){ ctx.fillRect(X(xw) - 0.5, fy + 22, 1, h); }
+    ctx.fillRect(0, fy + 22, w, 1);
+    const xa = X(0.02 * k.L), xb = X(0.98 * k.L), bh = 18;
+    // Geländer (ruht)
+    ctx.fillStyle = C.metal; rrect(ctx, xa - 10, fy - 92, xb - xa + 20, 8, 4); ctx.fill();
+    for (let xw = 0.02 * k.L; xw <= 0.98 * k.L + 0.01; xw += k.L / 12) ctx.fillRect(X(xw) - 2, fy - 86, 4, 86);
+    ctx.fillStyle = C.belt; rrect(ctx, xa - 6, fy, xb - xa + 12, bh, 9); ctx.fill();
+    // Bandrillen bewegen sich mit v₂
+    const off = m.d2 * m.v2 * m.t * sc, sp = 22;
+    ctx.save(); ctx.beginPath(); ctx.rect(xa, fy, xb - xa, bh); ctx.clip();
+    ctx.fillStyle = C.belt2;
+    for (let px = xa - sp + ((off % sp) + sp) % sp; px < xb + sp; px += sp) ctx.fillRect(px, fy + 2, 4, bh - 4);
+    ctx.restore();
+    ctx.fillStyle = C.metal; for (const px of [xa, xb]){ ctx.beginPath(); ctx.arc(px, fy + bh / 2, bh / 2 + 2, 0, 7); ctx.fill(); }
+    // Richtungspfeile auf der Bodenplatte
+    text(ctx, m.d2 > 0 ? "Laufband ⟶" : "⟵ Laufband", (xa + xb) / 2, fy + bh + 16, C.muted, 13, "center", "middle", 600, false);
+    if (S.show.arrows){ const ay = fy + bh + 36; arrow(ctx, (xa + xb) / 2 - m.d2 * m.v2 * kObj() / 2, ay, (xa + xb) / 2 + m.d2 * m.v2 * kObj() / 2, ay, C.t2, 3); text(ctx, "v₂", (xa + xb) / 2 + Math.abs(m.v2 * kObj()) / 2 + 8, ay, C.t2, 15); }
+    objY = fy;
+    const ph = m.v1 * m.t / 1.4;
+    objDraw = (xp, alpha) => { ctx.save(); ctx.globalAlpha = alpha; drawPerson(ctx, xp, fy, ph, 1, 1.15); ctx.restore(); };
+  }
+
+  // Maßstab (ruht gegenüber dem Boden)
+  const step = niceStep(k.L / 7), ry = h - 16;
+  ctx.save(); ctx.globalAlpha = 0.9;
+  line(ctx, X(0), ry, X(k.L), ry, C.muted, 1);
+  for (let xw = 0, i = 0; xw <= k.L + 1e-6; xw += step, i++){
+    line(ctx, X(xw), ry - 5, X(xw), ry + 1, C.muted, 1);
+    text(ctx, fmt(xw, 0) + " m", X(xw), ry - 12, C.muted, 11, "center", "middle", 500, true);
+  }
+  ctx.restore();
+
+  const pS = X(x0), pO = X(xObj);
+  // Startmarke
+  line(ctx, pS, objY - 70, pS, objY + 30, C.muted, 1.5, [4, 4]);
+  text(ctx, "Start", pS, objY + 42, C.muted, 12, "center");
+  // Weg-Spur
+  if (S.show.trail && Math.abs(pO - pS) > 1){
+    line(ctx, pS, objY + 24, pO, objY + 24, C.s, 4);
+    text(ctx, "s", (pS + pO) / 2, objY + 38, C.s, 15, "center");
+  }
+  // Schatten: nur Teilbewegung 1
+  if (S.show.ghost && k.szene !== "strasse"){
+    const pG = X(x0 + m.d1 * m.s1);
+    if (pG > -40 && pG < w + 40){ objDraw(pG, 0.28); text(ctx, "nur v₁", pG, objY - 46, C.t1, 12, "center"); }
+  }
+  objDraw(pO, 1);
+
+  // Geschwindigkeitspfeile am Körper (wie im Heft untereinander)
+  if (S.show.arrows){
+    const kk = kObj(), base = objY - (k.szene === "band" ? 112 : 34);
+    const rows = k.szene === "strasse"
+      ? [[m.d2 * m.v2, C.t1, "v₂", 0], [m.v, C.v, "v", 1]]
+      : [[m.d1 * m.v1, C.t1, "v₁", 0], [m.v, C.v, "v", 1]];
+    rows.forEach(([vv, col, lab], i) => {
+      const yy = base - (rows.length - 1 - i) * 22 - 10;
+      arrow(ctx, pO, yy, pO + vv * kk, yy, col, 3.2);
+      text(ctx, lab, pO + vv * kk + (vv >= 0 ? 8 : -8), yy, col, 15, vv >= 0 ? "left" : "right");
+    });
+  }
+  timeBadge(ctx, w, h, R);
+}
+function kObj(){ const k = kontext(); return 70 / Math.max(k.v1.def, k.v2.def, 0.1); }
+
+/* --- 2D: Ebene --- */
+function draw2d(ctx, w, h){
+  const k = kontext(), m = kin(), R = sceneRect(w, h);
+  let padT, padB, padL = 30, padR = 30;
+  if (k.szene === "fluss2d"){ padT = 56; padB = 46; }
+  else if (k.szene === "kran"){ padT = 54; padB = 34; padL = 70; }
+  else { padT = 70; padB = 40; }
+  const sc = (R.h - padT - padB) / k.Ly, Lx = (R.w - padL - padR) / sc;
+  const X = xw => R.x + padL + xw * sc, Y = yw => R.y + padT + yw * sc;
+  const g = { Lx, x0:0, y0:0, yEnd:k.Ly };
+  let objDraw;
+
+  if (k.szene === "fluss2d"){
+    g.x0 = Math.min(0.08 * Lx, 6); g.y0 = 0; g.yEnd = k.Ly;
+    ctx.fillStyle = C.grass; ctx.fillRect(0, R.y, w, h - R.y);
+    ctx.fillStyle = C.sand; ctx.fillRect(0, Y(0) - 12, w, 12); ctx.fillRect(0, Y(k.Ly), w, 12);
+    ctx.fillStyle = C.water; ctx.fillRect(0, Y(0), w, k.Ly * sc);
+    const off = m.v1 * m.t * sc, sp = 80;
+    ctx.strokeStyle = C.foam; ctx.lineWidth = 2; ctx.lineCap = "round";
+    for (let i = -2; i < w / sp + 3; i++) for (let j = 0; j < 6; j++){
+      const yy = Y(k.Ly * (0.08 + 0.17 * j)) + (hash(i * 5 + j) - 0.5) * 14;
+      const xx = ((i * sp + hash(i + j * 11) * sp + off) % (w + 3 * sp) + (w + 3 * sp)) % (w + 3 * sp) - sp;
+      ctx.beginPath(); ctx.moveTo(xx, yy); ctx.quadraticCurveTo(xx + 9, yy - 4, xx + 18, yy); ctx.quadraticCurveTo(xx + 27, yy + 4, xx + 36, yy); ctx.stroke();
+    }
+    text(ctx, "Ufer", w - 16, Y(0) - 26, C.dark ? "#cfe7c9" : "#2f5a2a", 12, "right", "middle", 600, false);
+    text(ctx, "Strömung ⟶", 16, Y(k.Ly) - 14, C.foam, 13, "left", "middle", 600, false);
+    const ph = m.v2 * m.t * 0.9;
+    objDraw = (xp, yp, a) => { ctx.save(); ctx.globalAlpha = a; drawSwimmer(ctx, xp, yp, Math.PI / 2, ph, 1.2); ctx.restore(); };
+  } else if (k.szene === "kran"){
+    g.x0 = Math.min(0.06 * Lx, 2); g.y0 = 1.2; g.yEnd = k.Ly - 0.9;
+    ctx.fillStyle = C.floor; ctx.fillRect(0, R.y, w, h - R.y);
+    ctx.fillStyle = C.dark ? "#3a3326" : "#c9b48a"; ctx.fillRect(0, Y(k.Ly), w, h);
+    // Turm und Ausleger (ruhen)
+    ctx.fillStyle = C.steel;
+    ctx.fillRect(X(0) - 52, Y(-1.6), 16, Y(k.Ly) - Y(-1.6));
+    ctx.fillRect(X(0) - 60, Y(-1.2) - 8, X(Lx) - X(0) + 60 + padR - 6, 10);
+    ctx.strokeStyle = C.steel; ctx.lineWidth = 1.5;
+    for (let px = X(0) - 60, i = 0; px < X(Lx) + padR - 10; px += 22, i++){
+      ctx.beginPath(); ctx.moveTo(px, Y(-1.2) - 8); ctx.lineTo(px + 11, Y(-1.2) - 24); ctx.lineTo(px + 22, Y(-1.2) - 8); ctx.stroke();
+    }
+    line(ctx, X(0) - 60, Y(-1.2) - 24, X(Lx) + padR - 12, Y(-1.2) - 24, C.steel, 3);
+    const tx = X(g.x0 + m.s1), ly = Y(g.y0 + m.s2);
+    objDraw = (xp, yp, a, hook = true) => {
+      ctx.save(); ctx.globalAlpha = a;
+      if (hook){
+        ctx.fillStyle = C.metal; rrect(ctx, xp - 16, Y(-1.2) + 2, 32, 12, 3); ctx.fill();
+        line(ctx, xp, Y(-1.2) + 14, xp, yp - 16, C.metal, 2);
+      }
+      ctx.fillStyle = C.dark ? "#c06a3a" : "#d9773f"; rrect(ctx, xp - 26, yp - 16, 52, 32, 3); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1.5; for (let i = -18; i <= 18; i += 9){ ctx.beginPath(); ctx.moveTo(xp + i, yp - 13); ctx.lineTo(xp + i, yp + 13); ctx.stroke(); }
+      ctx.restore();
+    };
+    text(ctx, "Laufkatze ⟶", X(Lx) + padR - 16, Y(-1.2) + 26, C.muted, 12, "right", "middle", 600, false);
+  } else { // fallschirm
+    g.x0 = Math.min(0.06 * Lx, 8); g.y0 = 0; g.yEnd = k.Ly - 1;
+    const grd = ctx.createLinearGradient(0, R.y, 0, h); grd.addColorStop(0, C.sky1); grd.addColorStop(1, C.sky2);
+    ctx.fillStyle = grd; ctx.fillRect(0, R.y, w, h - R.y);
+    // Wolken ruhen (Bezug), Windstriche bewegen sich mit v₁
+    ctx.fillStyle = C.cloud;
+    for (let i = 0; i < 5; i++){ const cx = w * (0.12 + 0.2 * i) + hash(i) * 40, cy2 = Y(k.Ly * (0.15 + 0.5 * hash(i + 9))); ctx.beginPath(); ctx.ellipse(cx, cy2, 46, 14, 0, 0, 7); ctx.ellipse(cx + 22, cy2 - 8, 26, 14, 0, 0, 7); ctx.fill(); }
+    const off = m.v1 * m.t * sc, sp = 90;
+    ctx.strokeStyle = C.dark ? "rgba(200,215,240,.35)" : "rgba(80,120,170,.35)"; ctx.lineWidth = 1.5;
+    for (let i = -2; i < w / sp + 3; i++) for (let j = 0; j < 5; j++){
+      const yy = Y(k.Ly * (0.1 + 0.19 * j)) + (hash(i * 3 + j) - 0.5) * 20;
+      const xx = ((i * sp + hash(i + j * 17) * sp + off) % (w + 3 * sp) + (w + 3 * sp)) % (w + 3 * sp) - sp;
+      line(ctx, xx, yy, xx + 30, yy, ctx.strokeStyle, 1.5);
+    }
+    ctx.fillStyle = C.grass; ctx.fillRect(0, Y(k.Ly), w, h);
+    text(ctx, "Wind ⟶", 16, Y(k.Ly * 0.05), C.muted, 12, "left", "middle", 600, false);
+    objDraw = (xp, yp, a) => {
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(xp, yp);
+      ctx.fillStyle = "#e85d4a"; ctx.beginPath(); ctx.ellipse(0, -44, 30, 16, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = "#f6f1e6"; ctx.beginPath(); ctx.ellipse(0, -44, 10, 16, 0, Math.PI, 0); ctx.fill();
+      ctx.strokeStyle = C.dark ? "#cfd5de" : "#4a5260"; ctx.lineWidth = 1;
+      for (const sx of [-30, -10, 10, 30]){ ctx.beginPath(); ctx.moveTo(sx, -44); ctx.lineTo(0, -10); ctx.stroke(); }
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha = a; drawPerson(ctx, xp, yp + 14, 0.25, 1, 0.55); ctx.restore();
+    };
+  }
+  geo2d = g;
+
+  const sx = X(g.x0), sy = Y(g.y0), ox = X(g.x0 + m.s1), oy = Y(g.y0 + m.s2);
+  // Startmarke
+  ctx.fillStyle = C.fg; ctx.beginPath(); ctx.arc(sx, sy, 4, 0, 7); ctx.fill();
+  text(ctx, "Start", sx + 8, sy - 12, C.fg, 12);
+  // Teilwege (gestrichelt, wie im Heft)
+  if (S.show.help && m.t > 0){
+    line(ctx, sx, sy, ox, sy, C.t1, 2.5, [7, 6]);
+    line(ctx, ox, sy, ox, oy, C.t2, 2.5, [7, 6]);
+    line(ctx, sx, sy, sx, oy, C.t2, 1.2, [2, 5]);
+    line(ctx, sx, oy, ox, oy, C.t1, 1.2, [2, 5]);
+    if (ox - sx > 20) text(ctx, "s₁", (sx + ox) / 2, sy - 12, C.t1, 15, "center");
+    if (oy - sy > 20) text(ctx, "s₂", ox + 10, (sy + oy) / 2, C.t2, 15, "left");
+  }
+  if (S.show.trail && m.t > 0){
+    line(ctx, sx, sy, ox, oy, C.s, 4);
+    const mx = (sx + ox) / 2, my = (sy + oy) / 2;
+    if (Math.hypot(ox - sx, oy - sy) > 30) text(ctx, "s", mx - 12, my + 6, C.s, 16, "right");
+  }
+  if (S.show.ghost){
+    const gx = X(g.x0 + m.s1), gy = Y(g.y0);
+    if (k.szene !== "kran") { objDraw(sx, oy, 0.28); text(ctx, "ohne v₁", sx + 30, oy, C.t2, 12); }
+  }
+  objDraw(ox, oy, 1);
+
+  if (S.show.arrows){
+    const kk = 80 / Math.max(k.v1.def, k.v2.def, 0.1);
+    const ax = ox, ay = oy, ex = ax + m.v1 * kk, ey = ay + m.v2 * kk;
+    line(ctx, ex, ay, ex, ey, C.muted, 1.2, [3, 4]); line(ctx, ax, ey, ex, ey, C.muted, 1.2, [3, 4]);
+    arrow(ctx, ax, ay, ex, ay, C.t1, 3.2); arrow(ctx, ax, ay, ax, ey, C.t2, 3.2); arrow(ctx, ax, ay, ex, ey, C.v, 3.6);
+    if (m.v1 * kk > 14) text(ctx, "v₁", ex + 8, ay, C.t1, 15);
+    text(ctx, "v₂", ax - 8, ey, C.t2, 15, "right");
+    text(ctx, "v", ex + 8, ey + 4, C.v, 16);
+  }
+  timeBadge(ctx, w, h, R);
+}
+
+function timeBadge(ctx, w, h, R){
+  const s = "t = " + ft(S.t);
+  ctx.save(); ctx.font = "600 15px " + getComputedStyle(document.body).fontFamily;
+  const tw = ctx.measureText(s).width + 20;
+  const one = bereich().art === "1d", bx = one ? 12 : w - tw - 12, by = one ? h - 82 : h - 44;
+  ctx.fillStyle = C.card; ctx.globalAlpha = 0.9; rrect(ctx, bx, by, tw, 30, 8); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+  text(ctx, s, bx + 10, by + 15, C.fg, 15, "left", "middle", 600, false);
+}
+
+/* ============================================================
+   Diagramme unten (Darstellung wie im Heft)
+   ============================================================ */
+function drawV(){
+  const { ctx, w, h } = setupCanvas($("cV")), k = kontext(), m = kin();
+  if (m.art === "1d"){
+    const d1 = m.d1, d2 = m.d2;
+    const lo = Math.min(0, d1 * k.v1.max, d2 * k.v2.max), hi = Math.max(0, d1 * k.v1.max, k.v1.max + (d2 > 0 ? k.v2.max : 0));
+    const pad = 34, kk = (w - 2 * pad) / (hi - lo), ox = pad - lo * kk;
+    const rows = [[d1 * m.v1, C.t1, "v₁"], [d2 * m.v2, C.t2, "v₂"], [m.v, C.v, "v"]];
+    line(ctx, ox, 8, ox, h - 6, C.muted, 1, [2, 4]);
+    rows.forEach(([vv, col, lab], i) => {
+      const y = h * (0.2 + 0.3 * i);
+      arrow(ctx, ox, y, ox + vv * kk, y, col, 3);
+      labelAt(ctx, lab + " = " + fv(lab === "v" ? vv : Math.abs(vv)), ox + vv * kk, y, col, vv >= 0 ? 1 : -1, w);
+    });
+  } else {
+    const kk = Math.min((w - 40 - 40) / k.v1.max, (h - 30 - 14) / k.v2.max);
+    const ox = 40, oy = 30, ex = ox + m.v1 * kk, ey = oy + m.v2 * kk;
+    line(ctx, ex, oy, ex, ey, C.muted, 1.2, [2, 4]); line(ctx, ox, ey, ex, ey, C.muted, 1.2, [2, 4]);
+    arrow(ctx, ox, oy, ex, oy, C.t1, 3); arrow(ctx, ox, oy, ox, ey, C.t2, 3); arrow(ctx, ox, oy, ex, ey, C.v, 3.4);
+    text(ctx, "v₁", (ox + ex) / 2, oy - 9, C.t1, 14, "center", "bottom");
+    text(ctx, "v₂", ox - 8, (oy + ey) / 2, C.t2, 14, "right");
+    text(ctx, "v", (ox + ex) / 2 + 8, (oy + ey) / 2 + 4, C.v, 15, "left");
+  }
+}
+/* Beschriftung an der Pfeilspitze; passt sie nicht daneben, steht sie darüber. */
+function labelAt(ctx, s, x, y, col, dir, w){
+  ctx.save(); ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily;
+  const tw = ctx.measureText(s).width; ctx.restore();
+  if (dir >= 0 && x + 7 + tw <= w - 4) return text(ctx, s, x + 7, y, col, 13, "left");
+  if (dir < 0 && x - 7 - tw >= 4) return text(ctx, s, x - 7, y, col, 13, "right");
+  const lx = Math.max(4, Math.min(w - 4 - tw, x - tw / 2));
+  text(ctx, s, lx, y - 15, col, 13, "left");
+}
+function drawS(){
+  const { ctx, w, h } = setupCanvas($("cS")), m = kin(), te = tEnd();
+  $("capS").textContent = "Wege bis t = " + ft(S.t);
+  if (m.art === "1d"){
+    const sE1 = m.v1 * te, sE2 = m.v2 * te;
+    const pts = [0, m.d1 * sE1, m.d1 * sE1 + m.d2 * sE2];
+    const lo = Math.min(...pts), hi = Math.max(...pts), pad = 34;
+    const kk = (w - 2 * pad) / Math.max(hi - lo, 1e-6), ox = pad - lo * kk;
+    const e1 = ox + m.d1 * m.s1 * kk, e2 = e1 + m.d2 * m.s2 * kk, eS = ox + m.s * kk;
+    const y1 = h * 0.2, y2 = h * 0.5, y3 = h * 0.8;
+    line(ctx, ox, 8, ox, h - 6, C.muted, 1, [2, 4]);
+    arrow(ctx, ox, y1, e1, y1, C.t1, 3);
+    line(ctx, e1, y1, e1, y2, C.muted, 1, [3, 4]);
+    arrow(ctx, e1, y2, e2, y2, C.t2, 3);
+    line(ctx, e2, y2, e2, y3, C.muted, 1, [3, 4]);
+    arrow(ctx, ox, y3, eS, y3, C.s, 3.4);
+    labelAt(ctx, "s₁ = " + fs(m.s1), e1, y1, C.t1, m.d1, w);
+    labelAt(ctx, "s₂ = " + fs(m.s2), e2, y2, C.t2, m.d2, w);
+    labelAt(ctx, "s = " + fs(m.s), eS, y3, C.s, m.s >= 0 ? 1 : -1, w);
+  } else {
+    const kk = Math.min((w - 40 - 40) / Math.max(m.v1 * te, 1e-6), (h - 30 - 14) / Math.max(m.v2 * te, 1e-6));
+    const ox = 40, oy = 30, ex = ox + m.s1 * kk, ey = oy + m.s2 * kk;
+    if (m.t > 0){
+      line(ctx, ox, oy, ex, oy, C.t1, 2.5, [6, 5]); line(ctx, ex, oy, ex, ey, C.t2, 2.5, [6, 5]);
+      arrow(ctx, ox, oy, ex, ey, C.s, 3.4);
+    }
+    ctx.fillStyle = C.fg; ctx.beginPath(); ctx.arc(ox, oy, 3, 0, 7); ctx.fill();
+    if (m.t > 0){
+      text(ctx, "s₁", (ox + ex) / 2, oy - 9, C.t1, 14, "center", "bottom");
+      text(ctx, "s₂", ex + 8, (oy + ey) / 2, C.t2, 14, "left");
+      text(ctx, "s", (ox + ex) / 2 - 8, (oy + ey) / 2 + 6, C.s, 15, "right");
+    }
+  }
+}
+
+/* ============================================================
+   Formeln
+   ============================================================ */
+function formulas(){
+  const b = bereich(), k = kontext(), m = kin();
+  const sub = n => "<sub>" + n + "</sub>";
+  const v1 = "v" + sub(1), v2 = "v" + sub(2), s1 = "s" + sub(1), s2 = "s" + sub(2);
+  let html = "";
+  const part = `<div class="fl part"><span class="p1">${s1} = ${v1} · t = ${fv(m.v1)} · ${ft(m.t)} = ${fs(m.s1)}</span><br><span class="p2">${s2} = ${v2} · t = ${fv(m.v2)} · ${ft(m.t)} = ${fs(m.s2)}</span></div>`;
+  if (m.art === "1d"){
+    const op = m.d2 > 0 ? "+" : "−";
+    html += `<div class="fl v">v = ${v1} ${op} ${v2} = ${fv(m.v1)} ${op} ${fv(m.v2)} = ${fv(m.v)}</div>`;
+    html += part;
+    html += `<div class="fl s">s = ${s1} ${op} ${s2} = ${fs(m.s1)} ${op} ${fs(m.s2)} = ${fs(m.s)}</div>`;
+    if (k.kmh) html += `<div class="fsmall">Zum Vergleich: ${v1} = ${fmt(m.v1 * 3.6, 0)} km/h, ${v2} = ${fmt(m.v2 * 3.6, 0)} km/h, v = ${fmt(m.v * 3.6, 0)} km/h</div>`;
+    if (m.v < -1e-9) html += `<div class="fsmall">Negatives Ergebnis: Die Gesamtbewegung zeigt in Richtung von ${v2}.</div>`;
+    if (Math.abs(m.v) < 1e-9) html += `<div class="fsmall">v = 0: Beide Teilbewegungen heben sich auf, der Körper bleibt gegenüber dem Boden an der gleichen Stelle.</div>`;
+  } else {
+    html += `<div class="fl v">v = <span class="sqrt"><span>${v1}² + ${v2}²</span></span> = <span class="sqrt"><span>(${fv(m.v1)})² + (${fv(m.v2)})²</span></span> = ${fv(m.v)}</div>`;
+    html += part;
+    html += `<div class="fl s">s = <span class="sqrt"><span>${s1}² + ${s2}²</span></span> = <span class="sqrt"><span>(${fs(m.s1)})² + (${fs(m.s2)})²</span></span> = ${fs(m.s)}</div>`;
+    const ang = Math.atan2(m.v1, m.v2) * 180 / Math.PI;
+    html += `<div class="fsmall">Die Gesamtbewegung ist um ${fmt(ang, 0)}° gegenüber der Richtung von ${v2} geneigt (tan α = ${v1} : ${v2}).</div>`;
+  }
+  $("formulas").innerHTML = html;
+}
+
+/* ============================================================
+   Oberfläche
+   ============================================================ */
+S.show = { arrows:true, trail:true, help:true, ghost:false };
+
+function buildBereiche(){
+  const box = $("bereiche"); box.innerHTML = "";
+  BEREICHE.forEach((b, i) => {
+    const bt = document.createElement("button"); bt.type = "button";
+    bt.innerHTML = `<small>${b.kopf}</small>${b.name}`;
+    bt.setAttribute("aria-pressed", String(i === S.b));
+    bt.addEventListener("click", () => { if (S.b === i) return; S.b = i; resetTime(); applyBereich(); });
+    box.appendChild(bt);
+  });
+}
+function applyBereich(){
+  const b = bereich();
+  [...$("bereiche").children].forEach((bt, i) => bt.setAttribute("aria-pressed", String(i === S.b)));
+  $("subText").textContent = b.kopf + " " + b.name + ": " + b.regel;
+  const box = $("kontexte"); box.innerHTML = "";
+  b.kontexte.forEach((k, i) => {
+    const bt = document.createElement("button"); bt.type = "button"; bt.className = "btn";
+    bt.textContent = k.name; bt.setAttribute("aria-pressed", String(i === S.k[S.b]));
+    bt.addEventListener("click", () => { S.k[S.b] = i; resetTime(); applyBereich(); });
+    box.appendChild(bt);
+  });
+  applyKontext();
+}
+function applyKontext(){
+  const k = kontext(), v = vals();
+  $("intro").textContent = k.intro;
+  for (const n of [1, 2]){
+    const r = $("r" + n), c = k["v" + n];
+    r.min = c.min; r.max = c.max; r.step = c.step; r.value = v["v" + n];
+    $("l" + n).innerHTML = `<b>v<sub>${n}</sub></b>: ${c.name}`;
+  }
+  $("ghostRow").hidden = k.szene === "strasse" || k.szene === "kran";
+  $("ghostRow").querySelector(".track").nextElementSibling.nextSibling.textContent =
+    bereich().art === "2d" ? "Schatten: ohne Teilbewegung 1" : "Schatten: nur Teilbewegung 1";
+  updateOut(); render();
+}
+function updateOut(){
+  const k = kontext(), v = vals();
+  for (const n of [1, 2]){
+    const x = v["v" + n];
+    $("o" + n).textContent = fv(x) + (k.kmh ? " (" + fmt(x * 3.6, 0) + " km/h)" : "");
+  }
+}
+for (const n of [1, 2]){
+  $("r" + n).addEventListener("input", e => { vals()["v" + n] = parseFloat(e.target.value); updateOut(); S.t = Math.min(S.t, tEnd()); render(); });
+}
+
+function setPlay(on){
+  S.running = on;
+  $("play").textContent = on ? "❚❚ Pause" : "▶ Start";
+  if (on){ S.last = performance.now(); requestAnimationFrame(loop); }
+}
+function resetTime(){ S.t = 0; setPlay(false); }
+$("play").addEventListener("click", () => {
+  if (!S.running && S.t >= tEnd() - 1e-6) S.t = 0;
+  setPlay(!S.running);
+});
+$("reset").addEventListener("click", () => { resetTime(); render(); });
+$("rT").addEventListener("input", e => { setPlay(false); S.t = tEnd() * e.target.value / 1000; render(); });
+document.querySelectorAll("#speeds .btn").forEach(bt => bt.addEventListener("click", () => {
+  S.speed = parseFloat(bt.dataset.f);
+  document.querySelectorAll("#speeds .btn").forEach(x => x.setAttribute("aria-pressed", String(x === bt)));
+}));
+[["tArrows", "arrows"], ["tTrail", "trail"], ["tHelp", "help"], ["tGhost", "ghost"]].forEach(([id, p]) => {
+  $(id).checked = S.show[p];
+  $(id).addEventListener("change", e => { S.show[p] = e.target.checked; render(); });
+});
+document.addEventListener("keydown", e => {
+  if (e.target.closest && e.target.closest("input[type=range]") && (e.key === " ")) e.preventDefault();
+  if (e.key === " " && !(e.target instanceof HTMLButtonElement)){ e.preventDefault(); $("play").click(); }
+  else if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey){ resetTime(); render(); }
+});
+
+function loop(now){
+  if (!S.running) return;
+  const dt = Math.min(0.1, (now - S.last) / 1000); S.last = now;
+  S.t += dt * S.speed;
+  const te = tEnd();
+  if (S.t >= te){ S.t = te; render(); setPlay(false); return; }
+  render();
+  requestAnimationFrame(loop);
+}
+
+function render(){
+  const { ctx, w, h } = setupCanvas($("cScene"));
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
+  if (bereich().art === "1d") draw1d(ctx, w, h); else draw2d(ctx, w, h);
+  drawV(); drawS(); formulas();
+  const te = tEnd();
+  $("rT").value = Math.round(Math.min(1, S.t / te) * 1000);
+  $("oT").textContent = ft(S.t) + " von " + ft(te);
+}
+
+$("togglePanel").addEventListener("click", function(){
+  const c = $("app").classList.toggle("collapsed");
+  this.setAttribute("aria-expanded", String(!c));
+  this.textContent = c ? "Einstellungen einblenden" : "Einstellungen ausblenden";
+  render();
+});
+$("theme").addEventListener("click", function(){
+  const dark = document.documentElement.dataset.theme !== "light";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  this.textContent = dark ? "Dunkel" : "Hell";
+  readColors(); render();
+});
+new ResizeObserver(() => render()).observe($("stage"));
+
+readColors();
+buildBereiche();
+applyBereich();
+</script>
+</body>
+</html>
