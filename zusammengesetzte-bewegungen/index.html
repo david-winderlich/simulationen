@@ -93,6 +93,14 @@ section{min-width:0}
 /* Eingabe direkt in der Szene */
 .scene canvas.hot{cursor:pointer}
 .scene canvas.drag{cursor:ew-resize}
+.ctrl{position:absolute;z-index:2;left:12px;bottom:52px;display:flex;gap:6px}
+.ctrl .btn{min-height:32px;padding:5px 12px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.ctrl .btn:not(.primary){background:var(--panel)}
+.tlink{font:inherit;color:var(--accent);background:none;border:0;padding:0 2px;cursor:pointer;border-bottom:1px dashed currentColor}
+.tlink:disabled{color:inherit;border:0;cursor:default}
+.tmax{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0;font-size:13px}
+.tmax input{font:inherit;width:70px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--chip);color:var(--fg)}
+.tmax .btn{min-height:30px;padding:3px 9px;font-size:13px}
 .edit{position:absolute;z-index:3;display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--accent);border-radius:9px;padding:6px 8px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px}
 .edit input{font:inherit;font-size:14px;width:92px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--chip);color:var(--fg)}
 .edit .btn{min-height:28px;padding:3px 9px;font-size:13px}
@@ -122,6 +130,7 @@ section{min-width:0}
       </div>
     </div>
     <div class="scene" id="sceneBox"><canvas id="cScene" role="img" aria-label="Animierte Szene"></canvas>
+      <div class="ctrl" id="ctrl"><button class="btn primary" id="play" type="button">▶ Start</button><button class="btn" id="reset" type="button" hidden>↺ Zurücksetzen</button></div>
       <form class="edit" id="edit" hidden><label for="editIn" id="editLab"></label><input id="editIn" type="text" inputmode="decimal" autocomplete="off"><span class="hint" id="editHint"></span><button class="btn primary" type="submit">OK</button></form></div>
     <div class="dias" id="dias" hidden>
       <div class="dia" id="diaS"><canvas id="cDiaS" role="img" aria-label="s-t-Diagramm"></canvas></div>
@@ -179,12 +188,9 @@ section{min-width:0}
 
     <section>
       <h2>Ablauf</h2>
-      <div class="row">
-        <button class="btn primary" id="play" type="button">▶ Start</button>
-        <button class="btn" id="reset" type="button">↺ Zurücksetzen</button>
-      </div>
-      <div class="slider" style="margin-top:12px">
-        <div class="top"><span class="lab">Zeit t</span><span class="val" id="oT"></span></div>
+      <div class="slider">
+        <div class="top"><span class="lab">Zeit t</span><span class="val"><span id="oT"></span> von <button type="button" class="tlink" id="tMaxBtn" title="Endzeit ändern"></button></span></div>
+        <form class="tmax" id="tMaxEdit" hidden><label for="tMaxIn">Endzeit</label><input id="tMaxIn" type="text" inputmode="decimal" autocomplete="off"> s <button class="btn primary" type="submit">OK</button><button class="btn" type="button" id="tMaxAuto">automatisch</button></form>
         <input type="range" id="rT" min="0" max="1000" step="1" value="0">
       </div>
       <div class="top" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -361,7 +367,9 @@ function startX1d(){
   if (k.start) return k.start.obj;
   return m.v >= 0 ? 0.1 * k.L : 0.88 * k.L;
 }
-function tEnd(){
+/* Endzeit: selbst eingestellt (Klick auf die rechte Zeit unter „Ablauf“) oder automatisch */
+function tEnd(){ const k = kontext(), T = k.frei ? vals().T : null; return T ? T : tAuto(); }
+function tAuto(){
   const k = kontext(), m = kin();
   const lim = (x0, v, lo, hi) => v > 1e-9 ? (hi - x0) / v : v < -1e-9 ? (lo - x0) / v : Infinity;
   let te = k.tMax;
@@ -1598,7 +1606,7 @@ function timeBadge(ctx, w, h, R){
   const s = "t = " + ft(S.t);
   ctx.save(); ctx.font = "600 15px " + getComputedStyle(document.body).fontFamily;
   const tw = ctx.measureText(s).width + 20;
-  const one = bereich().art === "1d", bx = one ? 12 : w - tw - 12, by = one ? h - 82 : h - 44;
+  const one = bereich().art === "1d", bx = one ? 20 + $("ctrl").offsetWidth : w - tw - 12, by = one ? h - 82 : h - 44;
   ctx.fillStyle = C.card; ctx.globalAlpha = 0.9; rrect(ctx, bx, by, tw, 30, 8); ctx.fill(); ctx.globalAlpha = 1;
   ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
   text(ctx, s, bx + 10, by + 15, C.fg, 15, "left", "middle", 600, false);
@@ -1663,8 +1671,7 @@ function drawDia(cv, kind, D){
     ctx.stroke(); };
   for (const s of D.series){
     ctx.strokeStyle = s.col; ctx.lineWidth = 2.5; ctx.lineJoin = "round";
-    ctx.globalAlpha = 0.3; ctx.setLineDash([6, 5]); path(s, D.T);
-    ctx.globalAlpha = 1; ctx.setLineDash([]); if (S.t > 0) path(s, S.t);
+    if (S.t > 0) path(s, S.t);   // läuft live mit, keine Vorschau
   }
   ctx.restore();
   for (const s of D.series){ ctx.fillStyle = s.col; ctx.beginPath(); ctx.arc(X(S.t), Y(val(s, S.t)), 5, 0, 7); ctx.fill(); }
@@ -1725,7 +1732,7 @@ function applyKontext(){
   $("freiNote").textContent = FREI_NOTE[k.frei + (bereich().d && bereich().d[1] < 0 ? "G" : "")] || FREI_NOTE[k.frei] || "";
   $("ghostRow").hidden = $("ghostRow").hidden || !!k.frei;
   if (k.frei === "strasse") markLkw();
-  closeEdit();
+  closeEdit(); $("tMaxEdit").hidden = true;
   $("ghostRow").querySelector(".track").nextElementSibling.nextSibling.textContent =
     bereich().art === "2d" ? "Schatten: ohne Teilbewegung 1" : "Schatten: nur Teilbewegung 1";
   updateOut(); render();
@@ -1733,7 +1740,7 @@ function applyKontext(){
 const FREI_NOTE = {
   strasseG:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Unter „Fahrbahn“ fahren sie getrennt aneinander vorbei oder auf derselben Fahrbahn ineinander. Mit dem Mausrad (oder + und −) zoomst du bis auf 2 m heran; steht die Kamera an der Straße, zeigt das Bild dann den Treffpunkt, und die Fahrzeuge kommen von außerhalb ins Bild. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren.",
   strasse:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu, die Leitpfosten stehen alle 50 m. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren: Dann steht dieses Fahrzeug in der Bildmitte still und alles andere zieht vorbei.",
-  fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Die Boje treibt mit der Strömung; ihren Startpunkt kannst du anklicken oder die Boje vor dem Start verschieben. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Mit dem Mausrad (oder + und −) zoomst du. Der Schwimmer ist maßstabsgetreu, die Laufzeit beträgt 60 s.",
+  fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Die Boje treibt mit der Strömung; ihren Startpunkt kannst du anklicken oder die Boje vor dem Start verschieben. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Mit dem Mausrad (oder + und −) zoomst du. Der Schwimmer ist maßstabsgetreu, die Laufzeit beträgt 60 s (unter „Ablauf“ auf die Endzeit klicken, um sie zu ändern).",
   band:"Gehgeschwindigkeit v₁ der Person, Geschwindigkeit v₂ des Laufbands (gegenüber dem Boden), Bandlänge und Bandanfang stellst du direkt in der Szene ein: Wert anklicken. Die Person kannst du vor dem Start auch verschieben; die 0 m liegt immer an ihrem Startpunkt. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit der Person mit. Alles ist maßstabsgetreu, das Geländer ist 1 m hoch."
 };
 function markLkw(){
@@ -1770,10 +1777,14 @@ for (const n of [1, 2]){
   $("r" + n).addEventListener("input", e => { vals()["v" + n] = parseFloat(e.target.value); updateOut(); S.t = Math.min(S.t, tEnd()); render(); });
 }
 
+function updCtrl(te = tEnd()){
+  const run = S.running, end = S.t >= te - 1e-6;
+  $("play").textContent = run ? "❚❚ Pause" : S.t <= 0 ? "▶ Start" : end ? "▶ Von vorn" : "▶ Weiter";
+  $("reset").hidden = run || S.t <= 0;
+}
 function setPlay(on){
-  S.running = on;
-  $("play").textContent = on ? "❚❚ Pause" : "▶ Start";
-  if (on){ S.last = performance.now(); requestAnimationFrame(loop); }
+  S.running = on; updCtrl();
+  if (on){ S.last = performance.now(); requestAnimationFrame(loop); } else render(); // Knopfbreite ändert sich: Zeitanzeige neu setzen
 }
 function resetTime(){ S.t = 0; setPlay(false); }
 $("play").addEventListener("click", () => {
@@ -1781,6 +1792,18 @@ $("play").addEventListener("click", () => {
   setPlay(!S.running);
 });
 $("reset").addEventListener("click", () => { resetTime(); render(); });
+$("tMaxBtn").addEventListener("click", () => {
+  const f = $("tMaxEdit"); if (!f.hidden){ f.hidden = true; return; }
+  setPlay(false); f.hidden = false; $("tMaxIn").value = fmt(tEnd(), 1).replace("−", "-"); $("tMaxIn").focus(); $("tMaxIn").select();
+});
+$("tMaxEdit").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const x = parseFloat($("tMaxIn").value.replace(",", ".").replace(/[^0-9.]/g, ""));
+  if (!isFinite(x) || x <= 0){ $("tMaxIn").focus(); return; }
+  vals().T = Math.min(600, Math.max(1, x)); $("tMaxEdit").hidden = true; S.t = Math.min(S.t, tEnd()); render();
+});
+$("tMaxAuto").addEventListener("click", () => { delete vals().T; $("tMaxEdit").hidden = true; S.t = Math.min(S.t, tEnd()); render(); });
+$("tMaxEdit").addEventListener("keydown", ev => { if (ev.key === "Escape") $("tMaxEdit").hidden = true; });
 $("rT").addEventListener("input", e => { setPlay(false); S.t = tEnd() * e.target.value / 1000; render(); });
 document.querySelectorAll("#speeds .btn").forEach(bt => bt.addEventListener("click", () => {
   S.speed = parseFloat(bt.dataset.f);
@@ -1815,7 +1838,9 @@ function render(){
   if (bereich().art === "1d") draw1d(ctx, w, h); else draw2d(ctx, w, h);
   const te = tEnd();
   $("rT").value = Math.round(Math.min(1, S.t / te) * 1000);
-  $("oT").textContent = ft(S.t) + " von " + ft(te);
+  $("oT").textContent = ft(S.t);
+  const tb = $("tMaxBtn"), fr = !!kontext().frei; tb.textContent = ft(te) + (fr ? " ✎" : ""); tb.disabled = !fr;
+  updCtrl(te);
 }
 
 /* ---------- Eingabe in der Szene ---------- */
