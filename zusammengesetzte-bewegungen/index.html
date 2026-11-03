@@ -93,6 +93,8 @@ section{min-width:0}
 /* Eingabe direkt in der Szene */
 .scene canvas.hot{cursor:pointer}
 .scene canvas.drag{cursor:ew-resize}
+.scene canvas.grab{cursor:grab}
+.scene canvas.grabbing{cursor:grabbing}
 .ctrl{position:absolute;z-index:2;left:12px;bottom:52px;display:flex;gap:6px}
 .ctrl .btn{min-height:32px;padding:5px 12px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .ctrl .btn:not(.primary){background:var(--panel)}
@@ -805,10 +807,15 @@ function taillight(ctx, xr, y, f){
 /* ---------- Gemeinsamer Rahmen für die Szenen mit Eingabe direkt im Bild ---------- */
 /* starts: Startpunkte (m), fronts: aktuelle Fronten (m), backM: Platz links für die Objektlänge (m) */
 function camera(w, D0, starts, fronts, backM, single, follow = null, focus = null){
-  const padR = 40;
+  const padR = 40, F = kontext().frei ? vals() : {};
+  if (F.fix && follow === null && isFinite(F.pan)){ // Kamera fest: Bildausschnitt bleibt, wo er hingeschoben wurde
+    const D = D0, sc = (w - 30 - padR) / (D + backM), padL = 30 + backM * sc, v0 = F.pan;
+    S.frame = { sc }; S.v0 = v0;
+    return { D, sc, v0, padL, fixable:true, X:xw => padL + (xw - v0) * sc };
+  }
   if (follow !== null){ // Kamera fährt mit einem Körper mit und hält ihn in der Bildmitte
     const D = D0, sc = (w - 30 - padR) / (D + backM), padL = 30 + backM * sc, v0 = follow - (D - backM) / 2;
-    S.frame = { sc };
+    S.frame = { sc }; S.v0 = v0;
     return { D, sc, v0, padL, X:xw => padL + (xw - v0) * sc };
   }
   const base = Math.min(0, ...starts), need = (Math.max(...starts) - base + 2) / 0.94;
@@ -821,8 +828,8 @@ function camera(w, D0, starts, fronts, backM, single, follow = null, focus = nul
   let v0 = Math.max(single ? base - 0.06 * D : base, lead - hold * D);
   if (focus !== null && D < need) v0 = Math.max(base, Math.min(base + need - D, focus - (D - backM) / 2));
   if (single && trail < v0 + 0.06 * D) v0 = trail - 0.06 * D;
-  S.frame = { sc };
-  return { D, sc, v0, padL, X:xw => padL + (xw - v0) * sc };
+  S.frame = { sc }; S.v0 = v0;
+  return { D, sc, v0, padL, fixable:true, X:xw => padL + (xw - v0) * sc };
 }
 function drawRuler(ctx, w, h, cam){
   const { D, sc, v0, X } = cam, ry = h - 16, xEnd = X(v0 + D);
@@ -837,6 +844,10 @@ function drawRuler(ctx, w, h, cam){
   bubble(ctx, "−", w - 72, ry - 40, C.fg, "zoomOut", "center", 15);
   bubble(ctx, "+", w - 40, ry - 40, C.fg, "zoomIn", "center", 15);
   text(ctx, "Zoom (Mausrad)", w - 92, ry - 40, C.muted, 12, "right", "middle", 500, true);
+  if (cam.fixable){ // Schalter: Kamera zieht mit / bleibt fest
+    const fx = !!vals().fix;
+    bubble(ctx, fx ? "📌 Kamera fest · Bild ziehen" : "Kamera zieht mit", w - 196, ry - 40, fx ? C.t1 : C.fg, "camFix", "right", 12);
+  }
 }
 /* Pfeile v₁ (blau) und v (grün) über einem Körper, Beschriftung bleibt im Bild */
 function arrowPair(ctx, w, cx, y, v1, v, lab1, kk){
@@ -1350,7 +1361,7 @@ function drawPersonNice(ctx, x, y, f, dir, ph){
 
 /* anklickbares Wertefeld in der Szene */
 function bubble(ctx, s, x, y, col, act, align = "center", size = 13){
-  if (S.show.hideParams && act && !act.startsWith("zoom")) return; // Schalter „Parameterfelder ausblenden“
+  if (S.show.hideParams && act && !act.startsWith("zoom") && act !== "camFix") return; // Schalter „Parameterfelder ausblenden“
   ctx.save(); ctx.font = "600 " + size + "px " + getComputedStyle(document.body).fontFamily;
   const tw = ctx.measureText(s).width, bw = tw + 18, bh = size + 12, cw = ctx.canvas.clientWidth;
   let bx = align === "right" ? x - bw : align === "left" ? x : x - bw / 2;
@@ -1729,7 +1740,8 @@ function applyKontext(){
   $("paramRow").hidden = !k.frei; $("diaRow").hidden = !k.frei;
   $("sliders").hidden = !!k.frei; $("freiNote").hidden = !k.frei; $("lkwBox").hidden = k.frei !== "strasse"; buildCam();
   $("laneBox").hidden = !(k.frei === "strasse" && bereich().d[1] < 0);
-  $("freiNote").textContent = FREI_NOTE[k.frei + (bereich().d && bereich().d[1] < 0 ? "G" : "")] || FREI_NOTE[k.frei] || "";
+  $("freiNote").textContent = (FREI_NOTE[k.frei + (bereich().d && bereich().d[1] < 0 ? "G" : "")] || FREI_NOTE[k.frei] || "")
+    + (k.frei ? " Mit dem Knopf „Kamera zieht mit“ unten rechts hältst du die Kamera fest; dann verschiebst du das Bild mit der Maus." : "");
   $("ghostRow").hidden = $("ghostRow").hidden || !!k.frei;
   if (k.frei === "strasse") markLkw();
   closeEdit(); $("tMaxEdit").hidden = true;
@@ -1906,6 +1918,7 @@ const hitAt = ev => { const r = cScene.getBoundingClientRect(), x = ev.clientX -
   for (let i = S.hits.length - 1; i >= 0; i--){ const H = S.hits[i]; if (x >= H.x && x <= H.x + H.w && y >= H.y && y <= H.y + H.h) return { H, x, y }; } return null; };
 let drag = null;
 cScene.addEventListener("pointermove", ev => {
+  if (drag && drag.pan){ vals().pan = drag.x0 - (ev.clientX - drag.cx) / S.frame.sc; render(); return; }
   if (drag){
     const dx = (ev.clientX - drag.cx) / (S.frame ? S.frame.sc : 1);
     const e = EDIT[drag.key]; vals()[drag.key] = Math.min(e.max, Math.max(e.min, Math.round(drag.x0 + drag.sg * dx))); render(); return;
@@ -1914,10 +1927,17 @@ cScene.addEventListener("pointermove", ev => {
   const dr = !!h && h.H.act.startsWith("drag");
   cScene.classList.toggle("hot", !!h && !dr);
   cScene.classList.toggle("drag", dr);
+  cScene.classList.toggle("grab", !h && !!kontext().frei && !!vals().fix);
 });
 cScene.addEventListener("pointerdown", ev => {
   const h = hitAt(ev);
-  if (!h){ if (!$("edit").hidden){ closeEdit(); } return; }
+  if (!h){
+    if (!$("edit").hidden){ closeEdit(); return; }
+    const F = vals();
+    if (kontext().frei && F.fix && S.frame){ drag = { cx:ev.clientX, x0:F.pan, pan:true }; cScene.setPointerCapture(ev.pointerId); cScene.classList.add("grabbing"); ev.preventDefault(); }
+    return;
+  }
+  if (h.H.act === "camFix"){ ev.preventDefault(); const F = vals(); F.fix = !F.fix; if (F.fix) F.pan = S.v0; render(); return; }
   const DRAG = { dragL:"xL", dragA:"xA", dragP:"xB", dragB:"xBo", dragS:"xS" }; // Person ziehen = Band relativ zur Person verschieben
   if (DRAG[h.H.act]){ const key = DRAG[h.H.act]; drag = { cx:ev.clientX, x0:vals()[key], key, sg:key === "xB" ? -1 : 1 }; cScene.setPointerCapture(ev.pointerId); ev.preventDefault(); return; }
   ev.preventDefault();
@@ -1926,14 +1946,15 @@ cScene.addEventListener("pointerdown", ev => {
 });
 function zoom(fac){
   if (!kontext().frei) return;
-  const F = vals(); F.D = Math.min(5000, Math.max(2, F.D * fac));
+  const F = vals(), D0 = F.D; F.D = Math.min(5000, Math.max(2, F.D * fac));
+  if (F.fix && isFinite(F.pan)) F.pan += (D0 - F.D) / 2; // feste Kamera: um die Bildmitte zoomen
   S.t = Math.min(S.t, tEnd()); render();
 }
 cScene.addEventListener("wheel", ev => {
   if (!kontext().frei) return;
   ev.preventDefault(); zoom(Math.exp(Math.max(-60, Math.min(60, ev.deltaY)) * 0.004));
 }, { passive:false });
-const endDrag = () => { if (drag){ drag = null; render(); } };
+const endDrag = () => { cScene.classList.remove("grabbing"); if (drag){ drag = null; render(); } };
 cScene.addEventListener("pointerup", endDrag); cScene.addEventListener("pointercancel", endDrag);
 
 $("togglePanel").addEventListener("click", function(){
