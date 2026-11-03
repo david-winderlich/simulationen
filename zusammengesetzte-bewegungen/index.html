@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Überlagerung gleichförmiger Bewegungen</title>
+<title>Zusammengesetzte Bewegungen</title>
 <style>
 /* Layout wie Lorentzkraft: Ansicht links (Umschalter oben links), einklappbares Bedienfeld rechts (auf dem Handy darunter). */
 :root{
@@ -120,7 +120,7 @@ section{min-width:0}
 
   <aside class="panel" id="panel" aria-label="Bedienfeld">
     <header>
-      <h1>Überlagerung gleichförmiger Bewegungen</h1>
+      <h1>Zusammengesetzte Bewegungen</h1>
       <p class="sub" id="subText"></p>
     </header>
 
@@ -132,7 +132,17 @@ section{min-width:0}
 
     <section>
       <h2>Teilbewegungen</h2>
-      <p class="note" id="freiNote" hidden style="margin-top:0">Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und den Startpunkt des Lkw stellst du direkt in der Szene ein: Wert anklicken. Den Lkw kannst du vor dem Start auch verschieben. Ein Klick auf das Ende der Abszisse legt die angezeigte Strecke fest.</p>
+      <p class="note" id="freiNote" hidden style="margin-top:0">Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und den Startpunkt des Lkw stellst du direkt in der Szene ein: Wert anklicken. Den Lkw kannst du vor dem Start auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu.</p>
+      <div id="lkwBox" hidden style="margin:12px 0">
+        <div class="note" style="margin:0 0 6px">Länge des Lkw</div>
+        <div class="chips" id="lkwLen">
+          <button class="btn" type="button" data-l="7.5">7,5 m</button>
+          <button class="btn" type="button" data-l="12">12 m</button>
+          <button class="btn" type="button" data-l="16.5">16,5 m (Sattelzug)</button>
+          <button class="btn" type="button" data-l="18.75">18,75 m (Gliederzug)</button>
+          <button class="btn" type="button" data-l="25.25">25,25 m (Lang-Lkw)</button>
+        </div>
+      </div>
       <div id="sliders">
       <div class="slider t1">
         <div class="top"><span class="lab" id="l1"></span><span class="val" id="o1"></span></div>
@@ -197,7 +207,7 @@ const BEREICHE = [
     kontexte:[
       { id:"autos", name:"Autos: Überholvorgang", szene:"strasse", frei:true, L:400, tMax:600, kmh:true,
         intro:"Ein Pkw überholt einen Lkw. Der Lkw fährt gegenüber der Straße mit v₁. Der Pkw ist gegenüber dem Lkw um v₂ = v − v₁ schneller. Gesamtbewegung: der Pkw gegenüber der Straße mit v = v₁ + v₂.",
-        frei0:{ vA:25, vL:20, xL:50, D:400 },
+        frei0:{ vA:25, vL:20, xL:50, D:100, LL:16.5 },
         v1:{ name:"Lkw gegenüber der Straße", min:10, max:25, step:0.5, def:20 },
         v2:{ name:"Pkw gegenüber dem Lkw", min:1, max:10, step:0.5, def:5 },
         start:{ obj:20, traeger:50 } },
@@ -267,7 +277,7 @@ function kin(){
   const b = bereich(), k = kontext(), t = S.t;
   if (k.frei){ // Pkw und Lkw gegenüber der Straße vorgegeben, v₂ = Pkw gegenüber Lkw
     const F = vals(), v1 = F.vL, v = F.vA, v2 = v - v1;
-    return { art:"1d", frei:true, v1, v2, d1:1, d2:1, v, s1:v1 * t, s2:v2 * t, s:v * t, t, xL0:F.xL, D:F.D };
+    return { art:"1d", frei:true, v1, v2, d1:1, d2:1, v, s1:v1 * t, s2:v2 * t, s:v * t, t, xL0:F.xL, D:F.D, LL:F.LL };
   }
   const { v1, v2 } = vals();
   if (b.art === "1d"){
@@ -295,8 +305,8 @@ function tEnd(){
     const ts = [];
     if (m.v > 1e-9) ts.push(m.D / m.v);
     if (m.v1 > 1e-9 && m.xL0 < m.D) ts.push((m.D - m.xL0) / m.v1);
-    if (m.v - m.v1 > 1e-9 && m.xL0 > 0) ts.push((m.xL0 + 25) / (m.v - m.v1) + 2);
-    if (m.v1 - m.v > 1e-9 && m.xL0 < 0) ts.push((-m.xL0 + 25) / (m.v1 - m.v) + 2);
+    if (m.v - m.v1 > 1e-9 && m.xL0 > 0) ts.push((m.xL0 + 15) / (m.v - m.v1) + 2);
+    if (m.v1 - m.v > 1e-9 && m.xL0 < 0) ts.push((-m.xL0 + m.LL + 15) / (m.v1 - m.v) + 2);
     te = ts.length ? Math.max(...ts) : 10;
     return Math.min(Math.max(te, 1), k.tMax);
   }
@@ -396,42 +406,47 @@ function drawCarNice(ctx, xf, y0, L, col){
   wheels(ctx, [P(0.2, 0.075), P(0.8, 0.075)], L * 0.075, L * 0.088);
   ctx.restore();
 }
-/* Sattelzug in Seitenansicht: Front bei xf, Räder auf y0, Länge L (px) */
-function drawTruckNice(ctx, xf, y0, L){
-  const P = (u, v) => [xf - L + u * L, y0 - v * L];
-  const mv = (u, v) => ctx.moveTo(...P(u, v)), ln = (u, v) => ctx.lineTo(...P(u, v));
-  const qd = (u1, v1, u2, v2) => ctx.quadraticCurveTo(...P(u1, v1), ...P(u2, v2));
-  const box = (u1, v1, u2, v2, col) => { ctx.fillStyle = col; ctx.fillRect(xf - L + u1 * L, y0 - v2 * L, (u2 - u1) * L, (v2 - v1) * L); };
+/* Lkw in Seitenansicht, in Metern gezeichnet: Front bei xf, Räder auf y0, Länge Lm (m), Maßstab f (px pro m).
+   Ab 13 m Sattelzug, darunter Solo-Lkw mit Kofferaufbau; Höhe immer 4 m. */
+function drawTruckNice(ctx, xf, y0, Lm, f){
+  const X = xm => xf - (Lm - xm) * f, Y = ym => y0 - ym * f;
+  const box = (x1, y1, x2, y2, col) => { ctx.fillStyle = col; ctx.fillRect(X(x1), Y(y2), (x2 - x1) * f, (y2 - y1) * f); };
+  const semi = Lm >= 13, cabL = 2.4, bodyEnd = Lm - cabL - (semi ? 0.55 : 0.25);
   ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(...P(0.5, 0), L * 0.51, L * 0.012, 0, 0, 7); ctx.fill();
-  // Fahrgestell
-  box(0.02, 0.052, 0.99, 0.072, "#2a2e35");
-  box(0.615, 0.03, 0.628, 0.055, "#4a505a");
-  // Auflieger
-  const tg = ctx.createLinearGradient(0, y0 - 0.245 * L, 0, y0 - 0.075 * L);
+  ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(X(Lm / 2), y0, Lm * f * 0.51, Math.max(1, 0.2 * f), 0, 0, 7); ctx.fill();
+  box(0.3, 0.78, Lm - 0.15, 1.12, "#2a2e35");
+  if (semi) box(bodyEnd - 3.3, 0.45, bodyEnd - 3.1, 0.85, "#4a505a");
+  // Aufbau / Auflieger
+  const tg = ctx.createLinearGradient(0, Y(4), 0, Y(1.15));
   tg.addColorStop(0, C.dark ? "#d8dde4" : "#ffffff"); tg.addColorStop(1, C.dark ? "#aeb5bf" : "#dfe4ea");
-  ctx.fillStyle = tg; rrect(ctx, xf - L, y0 - 0.245 * L, 0.79 * L, 0.17 * L, 3); ctx.fill();
+  ctx.fillStyle = tg; rrect(ctx, X(0), Y(4), bodyEnd * f, 2.85 * f, Math.min(3, f * 0.2)); ctx.fill();
   ctx.strokeStyle = C.dark ? "#7d8592" : "#a3abb7"; ctx.lineWidth = 1; ctx.stroke();
-  ctx.strokeStyle = C.dark ? "rgba(90,98,110,.45)" : "rgba(150,160,172,.45)";
-  ctx.beginPath(); for (let u = 0.04; u < 0.78; u += 0.04){ mv(u, 0.08); ln(u, 0.24); } ctx.stroke();
-  box(0.0, 0.105, 0.79, 0.125, "#2e6bd8"); box(0.0, 0.128, 0.79, 0.134, "#f0a030");
-  box(0.0, 0.08, 0.012, 0.1, "#d63a32");
-  // Zugmaschine
-  box(0.86, 0.05, 0.93, 0.085, "#9aa3ae");
-  const cg = ctx.createLinearGradient(0, y0 - 0.235 * L, 0, y0 - 0.07 * L);
+  if (f > 2.5){
+    ctx.strokeStyle = C.dark ? "rgba(90,98,110,.45)" : "rgba(150,160,172,.45)";
+    ctx.beginPath(); for (let x = 0.66; x < bodyEnd - 0.2; x += 0.66){ ctx.moveTo(X(x), Y(1.25)); ctx.lineTo(X(x), Y(3.9)); } ctx.stroke();
+  }
+  box(0, 1.72, bodyEnd, 2.05, "#2e6bd8"); box(0, 2.1, bodyEnd, 2.2, "#f0a030");
+  box(0, 1.3, 0.18, 1.6, "#d63a32");
+  // Fahrerhaus
+  box(Lm - cabL - 0.1, 0.85, Lm - cabL + 1.1, 1.4, "#9aa3ae");
+  const x0 = Lm - cabL;
+  const cg = ctx.createLinearGradient(0, Y(3.9), 0, Y(1.2));
   cg.addColorStop(0, shade(C.truckCab, 0.2)); cg.addColorStop(1, shade(C.truckCab, -0.25));
-  ctx.fillStyle = cg;
-  ctx.beginPath(); mv(0.83, 0.075); ln(0.83, 0.212); qd(0.832, 0.236, 0.86, 0.236); ln(0.972, 0.233);
-  qd(0.996, 0.23, 0.997, 0.2); ln(1.0, 0.095); ln(0.996, 0.075); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = cg; ctx.beginPath();
+  ctx.moveTo(X(x0), Y(1.2)); ctx.lineTo(X(x0), Y(3.5)); ctx.quadraticCurveTo(X(x0 + 0.03), Y(3.9), X(x0 + 0.45), Y(3.9));
+  ctx.lineTo(X(Lm - 0.45), Y(3.85)); ctx.quadraticCurveTo(X(Lm - 0.05), Y(3.8), X(Lm - 0.04), Y(3.3));
+  ctx.lineTo(X(Lm), Y(1.55)); ctx.lineTo(X(Lm - 0.06), Y(1.2)); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = shade(C.truckCab, -0.45); ctx.lineWidth = 1; ctx.stroke();
   ctx.fillStyle = C.dark ? "#9cc0e4" : "#cfe6f8";
-  ctx.beginPath(); mv(0.9, 0.215); ln(0.982, 0.215); ln(0.99, 0.158); ln(0.9, 0.158); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = shade(C.truckCab, -0.4); ctx.beginPath(); mv(0.895, 0.215); ln(0.895, 0.09); ctx.stroke();
-  box(0.99, 0.072, 1.0, 0.1, "#30353d");
-  ctx.fillStyle = "#fff4c2"; ctx.beginPath(); ctx.ellipse(...P(0.995, 0.112), L * 0.005, L * 0.008, 0, 0, 7); ctx.fill();
-  box(0.822, 0.2, 0.83, 0.262, "#8d96a3");
-  box(0.845, 0.236, 0.97, 0.245, shade(C.truckCab, -0.1));
-  wheels(ctx, [P(0.07, 0.032), P(0.125, 0.032), P(0.18, 0.032), P(0.82, 0.032), P(0.95, 0.032)], L * 0.032, L * 0.037);
+  ctx.beginPath(); ctx.moveTo(X(x0 + 1.15), Y(3.55)); ctx.lineTo(X(Lm - 0.3), Y(3.55)); ctx.lineTo(X(Lm - 0.17), Y(2.6)); ctx.lineTo(X(x0 + 1.15), Y(2.6)); ctx.closePath(); ctx.fill();
+  if (f > 2.5){ ctx.strokeStyle = shade(C.truckCab, -0.4); ctx.beginPath(); ctx.moveTo(X(x0 + 1.05), Y(3.55)); ctx.lineTo(X(x0 + 1.05), Y(1.45)); ctx.stroke(); }
+  box(Lm - 0.18, 1.18, Lm, 1.65, "#30353d");
+  ctx.fillStyle = "#fff4c2"; ctx.beginPath(); ctx.ellipse(X(Lm - 0.06), Y(1.85), Math.max(0.6, 0.08 * f), Math.max(0.8, 0.13 * f), 0, 0, 7); ctx.fill();
+  if (semi) box(x0 - 0.14, 3.3, x0, 4.3, "#8d96a3");
+  box(x0 + 0.4, 3.9, Lm - 0.5, 4.05, shade(C.truckCab, -0.1));
+  // Räder (Radius 0,5 m)
+  const ax = semi ? [1.3, 2.6, 3.9, Lm - 4.1, Lm - 1.15] : (Lm > 9 ? [Lm * 0.22, Lm * 0.22 + 1.35, Lm - 1.15] : [Lm * 0.28, Lm - 1.15]);
+  wheels(ctx, ax.map(x => [X(x), Y(0.5)]), 0.5 * f, 0.58 * f);
   ctx.restore();
 }
 function wheels(ctx, pts, r, arch){
@@ -480,18 +495,18 @@ function sceneRect(w, h){ const top = window.matchMedia("(max-width:820px)").mat
 
 /* --- Autos (gleiche Richtung): Pkw startet bei 0 m, Lkw-Start, Geschwindigkeiten und Strecke in der Szene einstellbar --- */
 function drawStrasseFrei(ctx, w, h){
-  const m = kin(), R = sceneRect(w, h), D = m.D;
-  const padR = 40, sc0 = (w - 100 - padR) / D;
-  const fMax = (R.h * 0.15) / 4;                        // Lkw (4 m hoch) höchstens 13 % der Bildhöhe
-  const f = Math.min(Math.max(sc0, 84 / 4.5), fMax);    // Zeichenmaßstab der Fahrzeuge (px pro m)
-  const carL = 4.5 * f, truckL = 16.5 * f;
-  const padL = carL + 26, sc = (w - padL - padR) / D;
+  const m = kin(), R = sceneRect(w, h);
+  const D = Math.max(m.D, (Math.max(0, m.xL0) + 2) / 0.94);  // zu Beginn sind immer beide Fahrzeuge im Bild
+  // Maßstabsgetreu: Fahrzeuge und Strecke im selben Maßstab (px pro m), Zoom mit dem Mausrad
+  const padR = 40, sc = (w - 26 - padR) / (D + 4.5), f = sc;
+  const carL = 4.5 * f, truckL = m.LL * f;
+  const padL = carL + 26;
   const xA = m.s, xT = m.xL0 + m.s1;                    // Fronten von Pkw und Lkw (m)
   const v0 = Math.max(0, Math.max(xA, xT) - 0.94 * D);  // Bild fährt mit, sobald ein Fahrzeug das Ende erreicht
   const X = xw => padL + (xw - v0) * sc;
   S.frame = { sc };
 
-  const lane = Math.max(4 * f * 1.45, 52), rh = 2 * lane + 8;
+  const lane = Math.max(4 * f * 1.3, 34), rh = 2 * lane + 8;
   const top = Math.round(R.y + 100 + (R.h - 100 - 150 - rh) * 0.5), bot = top + rh;
   const yA = top + 4 + lane * 0.86, yT = top + 4 + lane + lane * 0.9;
 
@@ -516,10 +531,13 @@ function drawStrasseFrei(ctx, w, h){
   line(ctx, Math.max(0, X(Math.min(0, v0))), ry, xEnd, ry, C.muted, 1);
   for (let xw = Math.ceil(v0 / step) * step; xw < v0 + D - 1e-6; xw += step){
     line(ctx, X(xw), ry - 5, X(xw), ry + 1, C.muted, 1);
-    if (X(xw) < xEnd - 46) text(ctx, fmt(xw, 0) + " m", X(xw), ry - 12, C.muted, 11, "center", "middle", 500, true);
+    if (X(xw) < xEnd - 40) text(ctx, fmt(xw, 0) + " m", X(xw), ry - 12, C.muted, 11, "center", "middle", 500, true);
   }
   line(ctx, xEnd, ry - 6, xEnd, ry + 1, C.fg, 1.5);
-  bubble(ctx, fmt(v0 + D, 0) + " m ✎", xEnd, ry - 13, C.fg, "D", "right", 12);
+  text(ctx, fmt(v0 + D, 0) + " m", xEnd, ry - 12, C.fg, 11, "center", "middle", 600, true);
+  bubble(ctx, "−", w - 72, ry - 40, C.fg, "zoomOut", "center", 15);
+  bubble(ctx, "+", w - 40, ry - 40, C.fg, "zoomIn", "center", 15);
+  text(ctx, "Zoom (Mausrad)", w - 92, ry - 40, C.muted, 12, "right", "middle", 500, true);
 
   // Startmarken
   if (X(0) > -2){ line(ctx, X(0), top + 4, X(0), top + lane + 4, C.mark, 1.5, [4, 4]); text(ctx, "Pkw-Start", X(0) + 5, top + 16, C.mark, 11, "left", "middle", 600, false); }
@@ -532,9 +550,10 @@ function drawStrasseFrei(ctx, w, h){
     line(ctx, X(0), yA + 6, X(xA), yA + 6, C.s, 4);
     if (S.show.help) line(ctx, pL, yT + 6, X(xT), yT + 6, C.t1, 3, [8, 6]);
   }
-  drawTruckNice(ctx, X(xT), yT, truckL);
+  drawTruckNice(ctx, X(xT), yT, m.LL, f);
   drawCarNice(ctx, X(xA), yA, carL, C.car);
-  if (S.t === 0 && !S.running) S.hits.push({ x:X(xT) - truckL, y:yT - 0.25 * truckL, w:truckL, h:0.25 * truckL, act:"dragL" });
+  if (S.t === 0 && !S.running){ const hw = Math.max(truckL, 30), hh = Math.max(4.2 * f, 24);
+    S.hits.push({ x:X(xT) - truckL / 2 - hw / 2, y:yT - hh, w:hw, h:hh + 4, act:"dragL" }); }
 
   // Pfeile und Werte
   const kk = 2.8, cA = X(xA) - carL / 2, cT = X(xT) - truckL / 2;
@@ -594,7 +613,7 @@ function draw1d(ctx, w, h){
     const yTruck = top + rh * 0.74, yCar = top + rh * 0.27;
     const xT = k.start.traeger + m.d1 * m.v1 * m.t;
     const carW = Math.max(48, Math.min(70, R.w * 0.06)), truckW = carW * 3.4;
-    drawTruckNice(ctx, X(xT) + truckW / 2, yTruck + truckW * 0.11, truckW);
+    drawTruckNice(ctx, X(xT) + truckW / 2, yTruck + truckW * 0.11, 16.5, truckW / 16.5);
     if (S.show.arrows) { arrow(ctx, X(xT) - truckW * 0.25, yTruck - truckW * 0.28, X(xT) - truckW * 0.25 + m.d1 * m.v1 * kObj(), yTruck - truckW * 0.28, C.t1, 3); text(ctx, "v₁", X(xT) - truckW * 0.25 + m.d1 * m.v1 * kObj() + 6, yTruck - truckW * 0.28, C.t1, 15); }
     objY = yCar;
     objDraw = (xp, alpha) => { ctx.save(); ctx.globalAlpha = alpha; drawCarNice(ctx, xp + carW / 2, yCar + carW * 0.2, carW, C.car); ctx.restore(); };
@@ -849,12 +868,15 @@ function applyKontext(){
     $("l" + n).innerHTML = `<b>v<sub>${n}</sub></b>: ${c.name}`;
   }
   $("ghostRow").hidden = k.szene === "strasse" || k.szene === "kran";
-  $("sliders").hidden = !!k.frei; $("freiNote").hidden = !k.frei;
+  $("sliders").hidden = !!k.frei; $("freiNote").hidden = !k.frei; $("lkwBox").hidden = !k.frei;
+  if (k.frei) markLkw();
   closeEdit();
   $("ghostRow").querySelector(".track").nextElementSibling.nextSibling.textContent =
     bereich().art === "2d" ? "Schatten: ohne Teilbewegung 1" : "Schatten: nur Teilbewegung 1";
   updateOut(); render();
 }
+function markLkw(){ const L = vals().LL; document.querySelectorAll("#lkwLen .btn").forEach(b => b.setAttribute("aria-pressed", String(parseFloat(b.dataset.l) === L))); }
+document.querySelectorAll("#lkwLen .btn").forEach(b => b.addEventListener("click", () => { vals().LL = parseFloat(b.dataset.l); markLkw(); S.t = Math.min(S.t, tEnd()); render(); }));
 function updateOut(){
   const k = kontext(), v = vals();
   if (k.frei) return;
@@ -920,7 +942,7 @@ const EDIT = {
   vA:{ lab:"Pkw gegenüber der Straße: v =", hint:"m/s (oder z. B. 90 km/h)", get:F => F.vA, set:(F, x) => F.vA = x, min:0, max:80, speed:true },
   vL:{ lab:"Lkw gegenüber der Straße: v₁ =", hint:"m/s (oder z. B. 72 km/h)", get:F => F.vL, set:(F, x) => F.vL = x, min:0, max:80, speed:true },
   xL:{ lab:"Lkw startet bei", hint:"m", get:F => F.xL, set:(F, x) => { F.xL = x; S.t = 0; }, min:-5000, max:50000 },
-  D:{ lab:"Strecke im Bild: bis", hint:"m", get:F => F.D, set:(F, x) => F.D = x, min:10, max:50000 }
+  D:{ lab:"Strecke im Bild", hint:"m", get:F => F.D, set:(F, x) => F.D = x, min:10, max:5000 }
 };
 let editAct = null;
 function openEdit(act, r){
@@ -966,8 +988,19 @@ cScene.addEventListener("pointerdown", ev => {
   const h = hitAt(ev);
   if (!h){ if (!$("edit").hidden){ closeEdit(); } return; }
   if (h.H.act === "dragL"){ drag = { cx:ev.clientX, x0:vals().xL }; cScene.setPointerCapture(ev.pointerId); ev.preventDefault(); return; }
-  ev.preventDefault(); openEdit(h.H.act, h.H);
+  ev.preventDefault();
+  if (h.H.act === "zoomIn" || h.H.act === "zoomOut") return zoom(h.H.act === "zoomIn" ? 1 / 1.25 : 1.25);
+  openEdit(h.H.act, h.H);
 });
+function zoom(fac){
+  if (!kontext().frei) return;
+  const F = vals(); F.D = Math.min(5000, Math.max(10, F.D * fac));
+  S.t = Math.min(S.t, tEnd()); render();
+}
+cScene.addEventListener("wheel", ev => {
+  if (!kontext().frei) return;
+  ev.preventDefault(); zoom(Math.exp(Math.max(-60, Math.min(60, ev.deltaY)) * 0.004));
+}, { passive:false });
 const endDrag = () => { if (drag){ drag = null; render(); } };
 cScene.addEventListener("pointerup", endDrag); cScene.addEventListener("pointercancel", endDrag);
 
