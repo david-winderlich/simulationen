@@ -1779,8 +1779,10 @@ for (const n of [1, 2]){
 
 function updCtrl(te = tEnd()){
   const run = S.running, end = S.t >= te - 1e-6;
-  $("play").textContent = run ? "❚❚ Pause" : S.t <= 0 ? "▶ Start" : end ? "▶ Von vorn" : "▶ Weiter";
-  $("reset").hidden = run || S.t <= 0;
+  // nur bei Änderung setzen: ein in jedem Bild ersetzter Text schluckt in manchen Browsern den Mausklick
+  const lab = run ? "❚❚ Pause" : S.t <= 0 ? "▶ Start" : end ? "▶ Von vorn" : "▶ Weiter", hid = run || S.t <= 0;
+  if ($("play").textContent !== lab) $("play").textContent = lab;
+  if ($("reset").hidden !== hid) $("reset").hidden = hid;
 }
 function setPlay(on){
   S.running = on; updCtrl();
@@ -1839,7 +1841,7 @@ function render(){
   const te = tEnd();
   $("rT").value = Math.round(Math.min(1, S.t / te) * 1000);
   $("oT").textContent = ft(S.t);
-  const tb = $("tMaxBtn"), fr = !!kontext().frei; tb.textContent = ft(te) + (fr ? " ✎" : ""); tb.disabled = !fr;
+  const tb = $("tMaxBtn"), fr = !!kontext().frei, tl = ft(te) + (fr ? " ✎" : ""); if (tb.textContent !== tl) tb.textContent = tl; tb.disabled = !fr;
   updCtrl(te);
 }
 
