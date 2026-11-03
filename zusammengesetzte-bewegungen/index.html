@@ -36,6 +36,10 @@ body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans);ov
 .stage{position:relative;flex:1;min-width:0;background:var(--scene-bg);display:flex;flex-direction:column;min-height:0}
 .scene{position:relative;flex:1 1 auto;min-height:240px}
 .scene canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.dias{flex:none;display:flex;height:clamp(180px,32vh,270px);border-top:1px solid var(--line);background:var(--scene-bg)}
+.dia{flex:1;position:relative;min-width:0}
+.dia+.dia{border-left:1px solid var(--line)}
+.dia canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .panel{width:360px;flex:none;overflow-y:auto;background:var(--panel);border-left:1px solid var(--line);
   padding-block:18px 28px;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));
   display:flex;flex-direction:column;gap:20px;min-width:0}
@@ -99,6 +103,9 @@ section{min-width:0}
   .stage{flex:none}
   .topbar{position:relative;top:auto;left:auto;right:auto;padding:12px 12px 0}
   .scene{flex:none;height:62vh;height:62dvh}
+  .dias{flex-direction:column;height:auto}
+  .dia{height:220px;flex:none}
+  .dia+.dia{border-left:0;border-top:1px solid var(--line)}
   .panel{width:auto;border-left:0;border-top:1px solid var(--line);overflow:visible}
 }
 @media (prefers-reduced-motion: reduce){.track,.track::after{transition:none}}
@@ -116,6 +123,10 @@ section{min-width:0}
     </div>
     <div class="scene" id="sceneBox"><canvas id="cScene" role="img" aria-label="Animierte Szene"></canvas>
       <form class="edit" id="edit" hidden><label for="editIn" id="editLab"></label><input id="editIn" type="text" inputmode="decimal" autocomplete="off"><span class="hint" id="editHint"></span><button class="btn primary" type="submit">OK</button></form></div>
+    <div class="dias" id="dias" hidden>
+      <div class="dia" id="diaS"><canvas id="cDiaS" role="img" aria-label="s-t-Diagramm"></canvas></div>
+      <div class="dia" id="diaV"><canvas id="cDiaV" role="img" aria-label="v-t-Diagramm"></canvas></div>
+    </div>
   </section>
 
   <aside class="panel" id="panel" aria-label="Bedienfeld">
@@ -133,13 +144,11 @@ section{min-width:0}
     <section>
       <h2>Teilbewegungen</h2>
       <p class="note" id="freiNote" hidden style="margin-top:0">Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und den Startpunkt des Lkw stellst du direkt in der Szene ein: Wert anklicken. Den Lkw kannst du vor dem Start auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu.</p>
-      <div id="lkwBox" hidden style="margin:12px 0">
+      <div id="camBox" hidden style="margin:12px 0">
         <div class="note" style="margin:0 0 6px">Kamera</div>
-        <div class="chips" id="camSel" style="margin-bottom:12px">
-          <button class="btn" type="button" data-c="strasse">steht an der Straße</button>
-          <button class="btn" type="button" data-c="pkw">fährt mit dem Pkw mit</button>
-          <button class="btn" type="button" data-c="lkw">fährt mit dem Lkw mit</button>
-        </div>
+        <div class="chips" id="camSel"></div>
+      </div>
+      <div id="lkwBox" hidden style="margin:12px 0">
         <div class="note" style="margin:0 0 6px">Länge des Lkw</div>
         <div class="chips" id="lkwLen">
           <button class="btn" type="button" data-l="7.5">7,5 m</button>
@@ -187,6 +196,10 @@ section{min-width:0}
       <label class="sw"><input type="checkbox" id="tArrows" checked><span class="track"></span><span class="dot" style="background:var(--c-v)"></span>Geschwindigkeitspfeile am Körper</label>
       <label class="sw"><input type="checkbox" id="tTrail" checked><span class="track"></span><span class="dot" style="background:var(--c-s)"></span>Weg-Spur</label>
       <label class="sw"><input type="checkbox" id="tHelp" checked><span class="track"></span><span class="dot" style="background:var(--c-t1)"></span>Teilwege (gestrichelte Hilfslinien)</label>
+      <div id="diaRow">
+      <label class="sw"><input type="checkbox" id="tDiaS"><span class="track"></span><span class="dot" style="background:var(--c-s)"></span>s-t-Diagramm einblenden</label>
+      <label class="sw"><input type="checkbox" id="tDiaV"><span class="track"></span><span class="dot" style="background:var(--c-v)"></span>v-t-Diagramm einblenden</label>
+      </div>
       <label class="sw" id="paramRow"><input type="checkbox" id="tParams"><span class="track"></span><span class="dot" style="background:var(--muted)"></span>Parameterfelder ausblenden</label>
       <label class="sw" id="ghostRow"><input type="checkbox" id="tGhost"><span class="track"></span><span class="dot" style="background:var(--muted)"></span>Schatten: nur Teilbewegung 1</label>
     </section>
@@ -220,12 +233,12 @@ const BEREICHE = [
         start:{ obj:20, traeger:50 } },
       { id:"schwimmer", name:"Schwimmer mit der Strömung", szene:"fluss1d", frei:"fluss", L:60, tMax:600,
         intro:"Ein Schwimmer schwimmt in Strömungsrichtung. Eingestellt werden seine Schwimmgeschwindigkeit v₁ gegenüber dem Wasser und die Strömung v₂ gegenüber dem Ufer. Gegenüber dem Ufer ist er mit v = v₁ + v₂ unterwegs.",
-        frei0:{ vP:1.0, vT:0.5, D:25 },
+        frei0:{ vP:1.0, vT:0.5, xBo:3, D:25 },
         v1:{ name:"Schwimmer gegenüber dem Wasser", min:0.2, max:2, step:0.05, def:1 },
         v2:{ name:"Strömung gegenüber dem Ufer", min:0, max:1.5, step:0.05, def:0.5 } },
       { id:"laufband", name:"Laufband am Flughafen", szene:"band", frei:"band", L:50, tMax:600,
         intro:"Eine Person geht mit v₁ (gegenüber dem Boden, auf dem Band gegenüber dem Band) und betritt ein Laufband, das mit v₂ gegenüber dem Boden in ihre Richtung läuft. Auf dem Band addieren sich die Geschwindigkeiten: v = v₁ + v₂. Vor und hinter dem Band ist sie gegenüber dem Boden nur mit v₁ unterwegs.",
-        frei0:{ vP:1.0, vT:0.6, Lb:30, xP:-5, D:20 },
+        frei0:{ vP:1.0, vT:0.6, Lb:10, xB:5, D:20 },
         v1:{ name:"Person gegenüber dem Band", min:0.2, max:2, step:0.05, def:1 },
         v2:{ name:"Laufband gegenüber dem Boden", min:0.2, max:1.2, step:0.05, def:0.6 } }
     ] },
@@ -239,12 +252,12 @@ const BEREICHE = [
         start:{ obj:75, traeger:35 } },
       { id:"schwimmer", name:"Schwimmer gegen die Strömung", szene:"fluss1d", frei:"fluss", L:60, tMax:600,
         intro:"Ein Schwimmer schwimmt gegen die Strömung nach rechts, das Wasser fließt nach links. Eingestellt werden seine Schwimmgeschwindigkeit v₁ gegenüber dem Wasser und die Strömung v₂ gegenüber dem Ufer. Gegenüber dem Ufer gilt v = v₁ − v₂. Ist die Strömung schneller als der Schwimmer, wird v negativ: Er treibt trotz Schwimmen zurück.",
-        frei0:{ vP:1.2, vT:0.5, D:25 },
+        frei0:{ vP:1.2, vT:0.5, xBo:3, D:25 },
         v1:{ name:"Schwimmer gegenüber dem Wasser", min:0.2, max:2, step:0.05, def:1.2 },
         v2:{ name:"Strömung gegenüber dem Ufer", min:0, max:1.5, step:0.05, def:0.5 } },
       { id:"laufband", name:"Gegen das Laufband laufen", szene:"band", frei:"band", L:50, tMax:600,
         intro:"Eine Person geht mit v₁ nach rechts und betritt ein Laufband, das mit v₂ gegenüber dem Boden nach links läuft. Auf dem Band gilt gegenüber dem Boden v = v₁ − v₂, vor und hinter dem Band ist sie mit v₁ unterwegs. Ist v₂ mindestens so groß wie v₁, kommt sie auf dem Band nicht voran.",
-        frei0:{ vP:1.2, vT:0.6, Lb:30, xP:-5, D:20 },
+        frei0:{ vP:1.2, vT:0.6, Lb:10, xB:5, D:20 },
         v1:{ name:"Person gegenüber dem Band", min:0.2, max:2, step:0.05, def:1.2 },
         v2:{ name:"Laufband gegenüber dem Boden", min:0.2, max:1.2, step:0.05, def:0.6 } }
     ] },
@@ -293,12 +306,13 @@ function kin(){
   if (k.frei === "band"){ // Person geht mit v₁; nur auf dem Band kommt v₂ hinzu
     const F = vals(), d2 = b.d[1], v1 = F.vP, v2 = F.vT, vB = v1 + d2 * v2, st = bandState(F, d2, t);
     const on = st.x >= 0 && st.x < F.Lb - 1e-9, held = on && vB < 0 && st.x <= 1e-9;
-    return { art:"1d", frei:"band", v1, v2, d1:1, d2, vB, v:held ? 0 : on ? vB : v1, x0:F.xP, x:st.x, on, on0:F.xP >= 0 && F.xP < F.Lb,
-      s:st.x - F.xP, s1:v1 * t, s2:st.x - F.xP - v1 * t, t, D:F.D, Lb:F.Lb };
+    // Ortsangaben ab dem Startpunkt der Person (0 m); das Band beginnt bei xB
+    return { art:"1d", frei:"band", v1, v2, d1:1, d2, vB, v:held ? 0 : on ? vB : v1, x0:0, x:st.x + F.xB, xB:F.xB, on, on0:F.xB <= 0 && -F.xB < F.Lb,
+      s:st.x + F.xB, s1:v1 * t, s2:st.x + F.xB - v1 * t, t, D:F.D, Lb:F.Lb };
   }
   if (k.frei){ // Körper und Träger (Wasser, Band) gegenüber dem Boden vorgegeben; v₁ = Körper gegenüber dem Träger
     const F = vals(), d2 = b.d[1], v1 = F.vP, v2 = F.vT, v = v1 + d2 * v2; // Schwimmer: v₁ gegenüber dem Wasser, Strömung v₂ gegenüber dem Ufer
-    return { art:"1d", frei:k.frei, v1, v2, d1:1, d2, v, s1:v1 * t, s2:v2 * t, s:v * t, t, D:F.D, Lb:F.Lb };
+    return { art:"1d", frei:k.frei, v1, v2, d1:1, d2, v, s1:v1 * t, s2:v2 * t, s:v * t, t, D:F.D, xBo0:F.xBo, xBo:F.xBo + d2 * v2 * t };
   }
   const { v1, v2 } = vals();
   if (b.art === "1d"){
@@ -313,7 +327,7 @@ function kin(){
 /* Laufband: Lage der Person zur Zeit t (vor dem Band v₁, auf dem Band v₁ ± v₂, dahinter wieder v₁) */
 function bandState(F, d2, t){
   const v1 = F.vP, vB = v1 + d2 * F.vT, Lb = F.Lb;
-  let x = F.xP, tt = t;
+  let x = -F.xB, tt = t;   // Lage relativ zum Bandanfang
   if (x < 0){ const t1 = -x / v1; if (tt <= t1) return { x:x + v1 * tt }; tt -= t1; x = 0; }
   if (x < Lb){
     if (vB > 1e-9){ const t2 = (Lb - x) / vB; if (tt <= t2) return { x:x + vB * tt }; tt -= t2; x = Lb; }
@@ -344,10 +358,10 @@ function tEnd(){
     te = ts.length ? Math.max(...ts) : 10;
     return Math.min(Math.max(te, 1), k.tMax);
   }
-  if (m.frei === "fluss") return Math.min(Math.max(Math.abs(m.v) > 0.01 ? m.D / Math.abs(m.v) : 30, 1), k.tMax);
+  if (m.frei === "fluss") return 60;   // Schwimmer: immer 60 s
   if (m.frei === "band"){ // bis die Person ein Stück hinter dem Band ist
-    let x = m.x0; te = 0;
-    const after = Math.max(6, -m.x0);
+    let x = -m.xB; te = 0;   // relativ zum Bandanfang
+    const after = Math.max(6, m.xB);
     if (x < 0){ te += -x / m.v1; x = 0; }
     if (x < m.Lb){
       if (m.vB > 1e-9){ te += (m.Lb - x) / m.vB; x = m.Lb; }
@@ -876,18 +890,45 @@ function drawStrasseFrei(ctx, w, h){
   if (follow !== null){ // Sicht aus dem mitfahrenden Fahrzeug
     const pkw = mode === "pkw", other = pkw ? m.v1 - m.v : m.v - m.v1, own = pkw ? m.v : m.v1;
     const P = pkw ? "Pkw" : "Lkw", O = pkw ? "der Lkw" : "der Pkw";
-    const L = w > 640 ? ["Kamera fährt mit dem " + P + " mit. Von dort aus gesehen bewegen sich", O + " mit " + fv(other) + " und die Straße mit " + fv(-own) + "."]
-                      : ["Kamera fährt mit dem " + P + " mit.", "Von dort gesehen: " + O + " " + fv(other) + ",", "die Straße " + fv(-own) + "."];
-    L.forEach((t, i) => text(ctx, t, 14, h - 103 - 19 * (L.length - 1 - i), C.fg, 13, "left", "middle", 600, true));
+    followInfo(ctx, w, h, "Kamera fährt mit dem " + P + " mit.", ["Von dort aus gesehen bewegen sich " + O + " mit " + fv(other) + " und die Straße mit " + fv(-own) + "."]);
   }
   timeBadge(ctx, w, h, R);
 }
 
+/* Hinweis unten links, wenn die Kamera mitfährt (bricht bei schmalem Bild um) */
+function followInfo(ctx, w, h, head, rest){
+  ctx.save(); ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily;
+  const words = (head + " " + rest.join(" ")).split(" "), L = [], maxW = Math.min(w - 28, 560);
+  let cur = "";
+  for (const wd of words){ const t = cur ? cur + " " + wd : wd; if (ctx.measureText(t).width > maxW && cur){ L.push(cur); cur = wd; } else cur = t; }
+  if (cur) L.push(cur);
+  const bw = Math.max(...L.map(t => ctx.measureText(t).width)) + 16, y0 = h - 103 - 19 * (L.length - 1) - 13;
+  ctx.fillStyle = C.card; ctx.globalAlpha = 0.88; rrect(ctx, 6, y0, bw, 19 * L.length + 8, 8); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.restore();
+  L.forEach((t, i) => text(ctx, t, 14, h - 103 - 19 * (L.length - 1 - i), C.fg, 13, "left", "middle", 600, true));
+}
+/* Treibende Boje von oben (Durchmesser ca. 0,7 m) */
+function drawBuoyTop(ctx, x, y, f, t){
+  const dk = C.dark, r = 0.35 * f;
+  ctx.save();
+  ctx.strokeStyle = dk ? "rgba(210,235,255,.3)" : "rgba(255,255,255,.7)"; ctx.lineWidth = Math.max(1, 0.03 * f);
+  for (let k = 0; k < 2; k++){ const q = ((t * 0.6 + k * 0.5) % 1); ctx.globalAlpha = 1 - q; ctx.beginPath(); ctx.arc(x, y, r * (1.15 + q * 1.3), 0, 7); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = dk ? "rgba(0,10,25,.3)" : "rgba(10,60,110,.2)"; ctx.beginPath(); ctx.arc(x + 0.06 * f, y + 0.06 * f, r, 0, 7); ctx.fill();
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
+  g.addColorStop(0, "#ff8a6a"); g.addColorStop(1, "#d6301c");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(1.5, 0.09 * f); ctx.beginPath(); ctx.arc(x, y, r * 0.62, 0, 7); ctx.stroke();
+  ctx.fillStyle = "#f4f4f4"; ctx.beginPath(); ctx.arc(x, y, r * 0.22, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#8a1d10"; ctx.lineWidth = Math.max(1, 0.02 * f); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+  ctx.restore();
+}
 /* --- Schwimmer und Strömung: beide Geschwindigkeiten gegenüber dem Ufer, maßstabsgetreu --- */
 function drawFlussFrei(ctx, w, h){
   const m = kin(), R = sceneRect(w, h), dk = C.dark, k = kontext();
-  const x0 = 0, xS = x0 + m.s;
-  const cam = camera(w, m.D, [x0], [xS], 2.2, true), { sc, v0, X } = cam, f = sc;
+  const x0 = 0, xS = x0 + m.s, mode = vals().cam || "ufer";
+  const follow = mode === "schwimmer" ? xS - 0.9 : mode === "boje" ? m.xBo : null;
+  const cam = camera(w, m.D, [x0, m.xBo0], [xS], 2.2, true, follow), { sc, v0, X } = cam, f = sc;
   const REF = refSc(w, k.frei0.D, 2.2);
   const wh = Math.max(110, Math.min(240, R.h * 0.34));
   const wt = Math.round(R.y + 110 + (R.h - 110 - 150 - wh) * 0.5), wb = wt + wh, bank = 16, Yc = wt + wh / 2;
@@ -948,6 +989,9 @@ function drawFlussFrei(ctx, w, h){
   if (pS > -2) { line(ctx, pS, wtS, pS, wbS, dk ? "rgba(255,255,255,.4)" : "rgba(255,255,255,.8)", 1.5, [4, 4]); text(ctx, "Start", pS + 5, Math.max(wtS, R.y) + 12, dk ? "#e6f2fb" : "#0b3a5a", 11, "left", "middle", 600, false); }
   if (S.show.trail && m.t > 0){ line(ctx, pS, sy + 0.45 * f + 8, pO, sy + 0.45 * f + 8, C.s, 4); text(ctx, "s = " + fs(m.s), Math.max(Math.min(pS, pO), 4) + 6, sy + 0.45 * f + 22, C.s, 13, "left"); }
   const ph = Math.max(0, m.v1) * m.t / 1.8;
+  const by0 = Y(wt + wh * 0.76), pB = X(m.xBo);
+  drawBuoyTop(ctx, pB, by0, f, m.t);
+  if (S.t === 0 && !S.running){ const r = Math.max(0.5 * f, 14); S.hits.push({ x:pB - r, y:by0 - r, w:2 * r, h:2 * r, act:"dragB" }); }
   drawSwimmerTop(ctx, pO, sy, f, 1, ph, m.v1 > 0.02);
   const kk = 70 / 1.5, cx = pO - 0.9 * f;
   const uT = Math.max(Y(wt - bank), R.y + 90), uB = Math.min(Y(wb + bank), h - 100);
@@ -955,6 +999,14 @@ function drawFlussFrei(ctx, w, h){
   if (S.show.arrows){ const ay = Math.min(wbS, h - 100) - 30; arrow(ctx, cx, ay, cx + m.d2 * m.v2 * kk, ay, C.t2, 3); }
   bubble(ctx, "Schwimmer gegenüber dem Wasser: v₁ = " + fv(m.v1) + " ✎", cx, uT - 26, C.t1, "vP", "center", 13);
   bubble(ctx, "Strömung: v₂ = " + fv(m.v2) + " ✎", cx, uB + 24, C.t2, "vT", "center", 13);
+  const pB0 = X(m.xBo0), eB = pB0 < 60 ? "← " : pB0 > w - 60 ? "→ " : "";
+  bubble(ctx, eB + "Boje startet bei " + fmt(m.xBo0, 0) + " m ✎", Math.max(60, Math.min(w - 60, pB0)), uB + 58, C.muted, "xBo", "center", 12);
+  if (follow !== null){
+    const sw = mode === "schwimmer";
+    followInfo(ctx, w, h, "Kamera fährt mit " + (sw ? "dem Schwimmer" : "der Boje") + " mit.",
+      sw ? ["Von dort aus gesehen bewegen sich die Boje mit " + fv(m.d2 * m.v2 - m.v) + " und das Ufer mit " + fv(-m.v) + "."]
+         : ["Von dort aus gesehen bewegen sich der Schwimmer mit " + fv(m.v - m.d2 * m.v2) + " (= v₁) und das Ufer mit " + fv(-m.d2 * m.v2) + "."]);
+  }
   timeBadge(ctx, w, h, R);
 }
 /* Schwimmer von oben (Kraulen). Kopf vorn bei x, Körper ca. 1,9 m lang, Maßstab f (px pro m) */
@@ -1047,7 +1099,7 @@ function drawSwimmerTop(ctx, x, y, f, dir, ph, kick = true){
 function drawBandFrei(ctx, w, h){
   const m = kin(), R = sceneRect(w, h), dk = C.dark, k = kontext();
   const xP = m.x;
-  const cam = camera(w, m.D, [m.x0, 0], [xP], 1.2, true), { sc, v0, X } = cam, f = sc;
+  const cam = camera(w, m.D, [0, m.xB], [xP], 1.2, true), { sc, v0, X } = cam, f = sc;
   const REF = refSc(w, k.frei0.D, 1.2), F = REF;
   const fy = Math.round(R.y + R.h * 0.6);                 // Hallenboden
   const ceil = R.y + 6, winTop = ceil + 26, winBot = fy - Math.max(26, 0.6 * F);
@@ -1106,7 +1158,7 @@ function drawBandFrei(ctx, w, h){
     }
   }
   // Laufband
-  const xa = (0 - v0) * F, xb = (m.Lb - v0) * F, skirt = Math.max(9, 0.35 * F);
+  const xa = (m.xB - v0) * F, xb = (m.xB + m.Lb - v0) * F, skirt = Math.max(9, 0.35 * F);
   const bandH = Math.max(4, 0.12 * F), rail = 1.0 * F;   // Geländer 1,0 m hoch (niedriger als die Person)
   ctx.fillStyle = dk ? "rgba(140,190,230,.12)" : "rgba(160,205,235,.30)"; rrect(ctx, xa - 0.4 * F, fy - rail, xb - xa + 0.8 * F, rail - bandH, Math.min(8, 0.3 * F)); ctx.fill();
   ctx.strokeStyle = dk ? "rgba(160,200,235,.35)" : "rgba(110,150,185,.45)"; ctx.lineWidth = 1; ctx.stroke();
@@ -1150,11 +1202,11 @@ function drawBandFrei(ctx, w, h){
   const kk = 70 / 1.6, cx = pO, top = Math.max(fyS - 1.85 * f, R.y + 120);
   if (S.show.arrows) arrowPair(ctx, w, cx, top - 16, m.v1, m.v, "Person gegenüber " + (m.on ? "dem Band" : "dem Boden"), kk);
   bubble(ctx, "Person geht mit v₁ = " + fv(m.v1) + " ✎", cx, top - 100, C.t1, "vP", "center", 13);
-  const by = Math.min(fyS + skS + 46, h - 140), xaS = X(0), lx = Math.max(xaS, 6), arr = xaS < 6 ? "← " : "";
+  const by = Math.min(fyS + skS + 46, h - 140), xaS = X(m.xB), lx = Math.max(xaS, 6), arr = xaS < 6 ? "← " : "";
   if (S.show.arrows){ const ax = lx + 50; arrow(ctx, ax - m.d2 * m.v2 * kk / 2, by - 22, ax + m.d2 * m.v2 * kk / 2, by - 22, C.t2, 3); }
   bubble(ctx, arr + "Laufband: v₂ = " + fv(m.v2) + " ✎", lx, by, C.t2, "vT", "left", 13);
   bubble(ctx, arr + "Bandlänge: " + fmt(m.Lb, 0) + " m ✎", lx, by + 34, C.muted, "Lb", "left", 12);
-  bubble(ctx, (pS < 60 ? "← " : "") + "Start: " + fmt(m.x0, 0) + " m ✎", Math.max(Math.min(pS, w - 60), 60), by + 68, C.muted, "xP", "center", 12);
+  bubble(ctx, arr + "Band beginnt bei " + fmt(m.xB, 0) + " m ✎", lx, by + 68, C.muted, "xB", "left", 12);
   timeBadge(ctx, w, h, R);
 }
 function plane(ctx, x, y, s, dk){
@@ -1466,9 +1518,87 @@ function timeBadge(ctx, w, h, R){
 }
 
 /* ============================================================
+   s-t- und v-t-Diagramm (einblendbar, nur für die Szenen mit Eingabe im Bild)
+   Orte und Geschwindigkeiten immer gegenüber dem Boden (Straße, Ufer, Hallenboden)
+   ============================================================ */
+function diaData(){
+  const k = kontext(), F = vals(), d2 = bereich().d[1], T = tEnd();
+  if (k.frei === "strasse"){
+    const m = kin();
+    return { T, ref:"gegenüber der Straße", series:[
+      { lab:"Pkw", col:C.v, x:t => m.xA0 + m.v * t, v:() => m.v },
+      { lab:"Lkw", col:C.t1, x:t => m.xL0 + m.v1 * t, v:() => m.v1 }] };
+  }
+  if (k.frei === "fluss"){
+    const v = F.vP + d2 * F.vT, vb = d2 * F.vT;
+    return { T, ref:"gegenüber dem Ufer", series:[
+      { lab:"Schwimmer", col:C.v, x:t => v * t, v:() => v },
+      { lab:"Boje", col:C.t2, x:t => F.xBo + vb * t, v:() => vb }] };
+  }
+  if (k.frei === "band"){
+    const vB = F.vP + d2 * F.vT;
+    const vAt = t => { const x = bandState(F, d2, t).x, on = x >= 0 && x < F.Lb - 1e-9; return on && vB < 0 && x <= 1e-9 ? 0 : on ? vB : F.vP; };
+    return { T, ref:"gegenüber dem Boden", series:[
+      { lab:"Person", col:C.v, x:t => bandState(F, d2, t).x + F.xB, v:vAt }] };
+  }
+  return null;
+}
+function drawDia(cv, kind, D){
+  const { ctx, w, h } = setupCanvas(cv);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
+  const L = 58, Rr = 16, Tp = 30, B = 34, W = w - L - Rr, H = h - Tp - B;
+  if (W < 40 || H < 40) return;
+  const N = 300, ts = Array.from({ length:N + 1 }, (_, i) => D.T * i / N);
+  const val = (s, t) => kind === "s" ? s.x(t) : s.v(t);
+  let lo = Infinity, hi = -Infinity;
+  for (const s of D.series) for (const t of ts){ const y = val(s, t); lo = Math.min(lo, y); hi = Math.max(hi, y); }
+  if (kind === "v"){ lo = Math.min(0, lo); hi = Math.max(0, hi); }
+  if (hi - lo < 1e-6){ hi += 1; lo -= kind === "v" && lo === 0 ? 0 : 1; }
+  const pad = (hi - lo) * 0.08; hi += pad; if (!(kind === "v" && lo === 0)) lo -= pad;
+  const X = t => L + t / D.T * W, Y = y => Tp + (hi - y) / (hi - lo) * H;
+  const ticks = (a, b, n) => { const st = niceStep((b - a) / n), o = []; for (let v = Math.ceil(a / st) * st; v <= b + 1e-9; v += st) o.push(Math.round(v / st) * st); return [o, st]; };
+  ctx.font = "500 11px " + getComputedStyle(document.body).fontFamily; ctx.lineWidth = 1;
+  const [tx, tst] = ticks(0, D.T, Math.max(3, Math.floor(W / 70))), [ty, yst] = ticks(lo, hi, Math.max(3, Math.floor(H / 40)));
+  const dec = st => st >= 1 ? 0 : st >= 0.1 ? 1 : 2;
+  for (const t of tx){ line(ctx, X(t), Tp, X(t), Tp + H, C.line, 1); text(ctx, fmt(t, dec(tst)), X(t), Tp + H + 14, C.muted, 11, "center", "middle", 500, false); }
+  for (const y of ty){ line(ctx, L, Y(y), L + W, Y(y), C.line, 1); text(ctx, fmt(y, dec(yst)), L - 6, Y(y), C.muted, 11, "right", "middle", 500, false); }
+  if (lo < 0 && hi > 0) line(ctx, L, Y(0), L + W, Y(0), C.muted, 1.2);
+  line(ctx, L, Tp, L, Tp + H, C.muted, 1.2); line(ctx, L, Tp + H, L + W, Tp + H, C.muted, 1.2);
+  text(ctx, kind === "s" ? "s in m" : "v in m/s", 8, 14, C.fg, 12, "left", "middle", 600, false);
+  text(ctx, "t in s", w - 6, h - 8, C.muted, 11, "right", "middle", 500, false);
+  text(ctx, (kind === "s" ? "s-t-Diagramm" : "v-t-Diagramm") + " (" + D.ref + ")", L + 70, 14, C.muted, 12, "left", "middle", 600, false);
+  ctx.save(); ctx.beginPath(); ctx.rect(L, Tp - 4, W + 4, H + 8); ctx.clip();
+  const path = (s, upto) => { ctx.beginPath(); let prev = null;
+    for (const t of ts){ if (t > upto + 1e-9) break; const y = val(s, t);
+      if (prev === null) ctx.moveTo(X(t), Y(y)); else if (kind === "v") { ctx.lineTo(X(t), Y(prev)); ctx.lineTo(X(t), Y(y)); } else ctx.lineTo(X(t), Y(y));
+      prev = y; }
+    if (upto < D.T && prev !== null){ const y = val(s, upto); if (kind === "v") ctx.lineTo(X(upto), Y(prev)); ctx.lineTo(X(upto), Y(y)); }
+    ctx.stroke(); };
+  for (const s of D.series){
+    ctx.strokeStyle = s.col; ctx.lineWidth = 2.5; ctx.lineJoin = "round";
+    ctx.globalAlpha = 0.3; ctx.setLineDash([6, 5]); path(s, D.T);
+    ctx.globalAlpha = 1; ctx.setLineDash([]); if (S.t > 0) path(s, S.t);
+  }
+  ctx.restore();
+  for (const s of D.series){ ctx.fillStyle = s.col; ctx.beginPath(); ctx.arc(X(S.t), Y(val(s, S.t)), 5, 0, 7); ctx.fill(); }
+  // Legende
+  let lx = L + W - 6;
+  for (const s of [...D.series].reverse()){
+    ctx.save(); ctx.font = "600 12px " + getComputedStyle(document.body).fontFamily; const tw = ctx.measureText(s.lab).width; ctx.restore();
+    text(ctx, s.lab, lx, Tp + 10, s.col, 12, "right", "middle", 600, true); line(ctx, lx - tw - 24, Tp + 10, lx - tw - 6, Tp + 10, s.col, 3); lx -= tw + 40;
+  }
+}
+function drawDias(){
+  const D = kontext().frei ? diaData() : null, onS = !!D && S.show.diaS, onV = !!D && S.show.diaV;
+  $("dias").hidden = !(onS || onV); $("diaS").hidden = !onS; $("diaV").hidden = !onV;
+  if (onS) drawDia($("cDiaS"), "s", D);
+  if (onV) drawDia($("cDiaV"), "v", D);
+}
+
+/* ============================================================
    Oberfläche
    ============================================================ */
-S.show = { arrows:false, trail:false, help:false, ghost:false, hideParams:false };
+S.show = { arrows:false, trail:false, help:false, ghost:false, hideParams:false, diaS:false, diaV:false };
 
 function buildBereiche(){
   const box = $("bereiche"); box.innerHTML = "";
@@ -1502,8 +1632,8 @@ function applyKontext(){
     $("l" + n).innerHTML = `<b>v<sub>${n}</sub></b>: ${c.name}`;
   }
   $("ghostRow").hidden = k.szene === "strasse" || k.szene === "kran";
-  $("paramRow").hidden = !k.frei;
-  $("sliders").hidden = !!k.frei; $("freiNote").hidden = !k.frei; $("lkwBox").hidden = k.frei !== "strasse";
+  $("paramRow").hidden = !k.frei; $("diaRow").hidden = !k.frei;
+  $("sliders").hidden = !!k.frei; $("freiNote").hidden = !k.frei; $("lkwBox").hidden = k.frei !== "strasse"; buildCam();
   $("freiNote").textContent = FREI_NOTE[k.frei] || "";
   $("ghostRow").hidden = $("ghostRow").hidden || !!k.frei;
   if (k.frei === "strasse") markLkw();
@@ -1514,15 +1644,28 @@ function applyKontext(){
 }
 const FREI_NOTE = {
   strasse:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu, die Leitpfosten stehen alle 50 m. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren: Dann steht dieses Fahrzeug in der Bildmitte still und alles andere zieht vorbei.",
-  fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit dem Schwimmer mit. Der Schwimmer ist maßstabsgetreu.",
-  band:"Gehgeschwindigkeit v₁ der Person, Geschwindigkeit v₂ des Laufbands (gegenüber dem Boden), Bandlänge und Startpunkt stellst du direkt in der Szene ein: Wert anklicken. Die Person kannst du vor dem Start auch verschieben, z. B. vor das Band. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit der Person mit. Alles ist maßstabsgetreu, das Geländer ist 1 m hoch."
+  fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Die Boje treibt mit der Strömung; ihren Startpunkt kannst du anklicken oder die Boje vor dem Start verschieben. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Mit dem Mausrad (oder + und −) zoomst du. Der Schwimmer ist maßstabsgetreu, die Laufzeit beträgt 60 s.",
+  band:"Gehgeschwindigkeit v₁ der Person, Geschwindigkeit v₂ des Laufbands (gegenüber dem Boden), Bandlänge und Bandanfang stellst du direkt in der Szene ein: Wert anklicken. Die Person kannst du vor dem Start auch verschieben; die 0 m liegt immer an ihrem Startpunkt. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit der Person mit. Alles ist maßstabsgetreu, das Geländer ist 1 m hoch."
 };
 function markLkw(){
-  const F = vals(), L = F.LL, c = F.cam || "strasse";
+  const L = vals().LL;
   document.querySelectorAll("#lkwLen .btn").forEach(b => b.setAttribute("aria-pressed", String(parseFloat(b.dataset.l) === L)));
-  document.querySelectorAll("#camSel .btn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.c === c)));
 }
-document.querySelectorAll("#camSel .btn").forEach(b => b.addEventListener("click", () => { vals().cam = b.dataset.c; markLkw(); render(); }));
+const CAMS = {
+  strasse:[["strasse", "steht an der Straße"], ["pkw", "fährt mit dem Pkw mit"], ["lkw", "fährt mit dem Lkw mit"]],
+  fluss:[["ufer", "steht am Ufer"], ["boje", "fährt mit der Boje mit"], ["schwimmer", "fährt mit dem Schwimmer mit"]]
+};
+function buildCam(){
+  const list = CAMS[kontext().frei], box = $("camSel");
+  $("camBox").hidden = !list; box.innerHTML = ""; if (!list) return;
+  const cur = vals().cam || list[0][0];
+  for (const [c, lab] of list){
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn"; b.textContent = lab;
+    b.setAttribute("aria-pressed", String(c === cur));
+    b.addEventListener("click", () => { vals().cam = c; buildCam(); render(); });
+    box.appendChild(b);
+  }
+}
 document.querySelectorAll("#lkwLen .btn").forEach(b => b.addEventListener("click", () => { vals().LL = parseFloat(b.dataset.l); markLkw(); S.t = Math.min(S.t, tEnd()); render(); }));
 function updateOut(){
   const k = kontext(), v = vals();
@@ -1552,7 +1695,7 @@ document.querySelectorAll("#speeds .btn").forEach(bt => bt.addEventListener("cli
   S.speed = parseFloat(bt.dataset.f);
   document.querySelectorAll("#speeds .btn").forEach(x => x.setAttribute("aria-pressed", String(x === bt)));
 }));
-[["tArrows", "arrows"], ["tTrail", "trail"], ["tHelp", "help"], ["tGhost", "ghost"], ["tParams", "hideParams"]].forEach(([id, p]) => {
+[["tArrows", "arrows"], ["tTrail", "trail"], ["tHelp", "help"], ["tGhost", "ghost"], ["tParams", "hideParams"], ["tDiaS", "diaS"], ["tDiaV", "diaV"]].forEach(([id, p]) => {
   $(id).checked = S.show[p];
   $(id).addEventListener("change", e => { S.show[p] = e.target.checked; render(); });
 });
@@ -1575,6 +1718,7 @@ function loop(now){
 
 function render(){
   S.hits = [];
+  drawDias(); // zuerst, damit die Szene die verbleibende Höhe kennt
   const { ctx, w, h } = setupCanvas($("cScene"));
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
   if (bereich().art === "1d") draw1d(ctx, w, h); else draw2d(ctx, w, h);
@@ -1587,19 +1731,19 @@ function render(){
 S.hits = [];
 const EDIT_LAB = {
   strasse:{ vA:"Pkw gegenüber der Straße: v =", vL:"Lkw gegenüber der Straße: v₁ =", xA:"Pkw startet bei", xL:"Lkw startet bei" },
-  fluss:{ vP:"Schwimmer gegenüber dem Wasser: v₁ =", vT:"Strömung gegenüber dem Ufer: v₂ =" },
-  band:{ vP:"Person geht (gegenüber Boden bzw. Band) mit v₁ =", vT:"Laufband gegenüber dem Boden: v₂ =", Lb:"Länge des Laufbands", xP:"Person startet bei (Bandanfang = 0 m)" }
+  fluss:{ vP:"Schwimmer gegenüber dem Wasser: v₁ =", vT:"Strömung gegenüber dem Ufer: v₂ =", xBo:"Die Boje startet bei (Start des Schwimmers = 0 m)" },
+  band:{ vP:"Person geht (gegenüber Boden bzw. Band) mit v₁ =", vT:"Laufband gegenüber dem Boden: v₂ =", Lb:"Länge des Laufbands", xB:"Das Band beginnt bei (Start der Person = 0 m)" }
 };
 const gleich = () => bereich().d[1] > 0;
 const EDIT_RANGE = {
   strasse:{ vA:[0, 80], vL:[0, 80] },
   // Der Schwimmer schwimmt gegenüber dem Wasser immer vorwärts (v₁ ≥ 0)
-  fluss:{ vP:[0, 2.5], vT:[0, 5] },
-  band:{ vP:[0.1, 4], vT:[0, 3], xP:F => [-100, F.Lb - 1], Lb:F => [Math.max(2, F.xP + 1), 500] }
+  fluss:{ vP:[0, 2.5], vT:[0, 5], xBo:[-200, 200] },
+  band:{ vP:[0.1, 4], vT:[0, 3], xB:F => [1 - F.Lb, 100], Lb:F => [Math.max(2, 1 - F.xB), 500] }
 };
 const rangeOf = k => { const r = (EDIT_RANGE[kontext().frei] || {})[k]; return typeof r === "function" ? r(vals()) : r; };
 const EDIT = {};
-for (const [k, speed, lo, hi, reset] of [["vA", true, -80, 80], ["vL", true, 0, 80], ["vT", true, 0, 5], ["vP", true, 0, 5], ["xA", false, -5000, 50000, true], ["xL", false, -5000, 50000, true], ["xP", false, -100, 500, true], ["Lb", false, 2, 500, true]]){
+for (const [k, speed, lo, hi, reset] of [["vA", true, -80, 80], ["vL", true, 0, 80], ["vT", true, 0, 5], ["vP", true, 0, 5], ["xA", false, -5000, 50000, true], ["xL", false, -5000, 50000, true], ["xB", false, -500, 100, true], ["xBo", false, -200, 200, true], ["Lb", false, 2, 500, true]]){
   EDIT[k] = { speed, get:F => F[k], set:(F, x) => { F[k] = x; if (reset) S.t = 0; },
     get lab(){ return (EDIT_LAB[kontext().frei] || {})[k] || k; },
     get hint(){
@@ -1645,7 +1789,7 @@ let drag = null;
 cScene.addEventListener("pointermove", ev => {
   if (drag){
     const dx = (ev.clientX - drag.cx) / (S.frame ? S.frame.sc : 1);
-    const e = EDIT[drag.key]; vals()[drag.key] = Math.min(e.max, Math.max(e.min, Math.round(drag.x0 + dx))); render(); return;
+    const e = EDIT[drag.key]; vals()[drag.key] = Math.min(e.max, Math.max(e.min, Math.round(drag.x0 + drag.sg * dx))); render(); return;
   }
   const h = hitAt(ev);
   const dr = !!h && h.H.act.startsWith("drag");
@@ -1655,8 +1799,8 @@ cScene.addEventListener("pointermove", ev => {
 cScene.addEventListener("pointerdown", ev => {
   const h = hitAt(ev);
   if (!h){ if (!$("edit").hidden){ closeEdit(); } return; }
-  const DRAG = { dragL:"xL", dragA:"xA", dragP:"xP" };
-  if (DRAG[h.H.act]){ const key = DRAG[h.H.act]; drag = { cx:ev.clientX, x0:vals()[key], key }; cScene.setPointerCapture(ev.pointerId); ev.preventDefault(); return; }
+  const DRAG = { dragL:"xL", dragA:"xA", dragP:"xB", dragB:"xBo" }; // Person ziehen = Band relativ zur Person verschieben
+  if (DRAG[h.H.act]){ const key = DRAG[h.H.act]; drag = { cx:ev.clientX, x0:vals()[key], key, sg:key === "xB" ? -1 : 1 }; cScene.setPointerCapture(ev.pointerId); ev.preventDefault(); return; }
   ev.preventDefault();
   if (h.H.act === "zoomIn" || h.H.act === "zoomOut") return zoom(h.H.act === "zoomIn" ? 1 / 1.25 : 1.25);
   openEdit(h.H.act, h.H);
