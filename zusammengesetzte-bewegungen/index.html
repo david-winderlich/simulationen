@@ -1785,8 +1785,8 @@ function updCtrl(te = tEnd()){
   if ($("reset").hidden !== hid) $("reset").hidden = hid;
 }
 function setPlay(on){
-  S.running = on; updCtrl();
-  if (on){ S.last = performance.now(); requestAnimationFrame(loop); } else render(); // Knopfbreite ändert sich: Zeitanzeige neu setzen
+  const was = S.running; S.running = on; updCtrl();
+  if (on){ S.last = performance.now(); requestAnimationFrame(loop); } else if (was) render(); // Knopfbreite ändert sich: Zeitanzeige neu setzen
 }
 function resetTime(){ S.t = 0; setPlay(false); }
 $("play").addEventListener("click", () => {
@@ -1806,7 +1806,7 @@ $("tMaxEdit").addEventListener("submit", ev => {
 });
 $("tMaxAuto").addEventListener("click", () => { delete vals().T; $("tMaxEdit").hidden = true; S.t = Math.min(S.t, tEnd()); render(); });
 $("tMaxEdit").addEventListener("keydown", ev => { if (ev.key === "Escape") $("tMaxEdit").hidden = true; });
-$("rT").addEventListener("input", e => { setPlay(false); S.t = tEnd() * e.target.value / 1000; render(); });
+$("rT").addEventListener("input", e => { S.t = tEnd() * e.target.value / 1000; setPlay(false); render(); });
 document.querySelectorAll("#speeds .btn").forEach(bt => bt.addEventListener("click", () => {
   S.speed = parseFloat(bt.dataset.f);
   document.querySelectorAll("#speeds .btn").forEach(x => x.setAttribute("aria-pressed", String(x === bt)));
