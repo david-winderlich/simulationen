@@ -148,6 +148,13 @@ section{min-width:0}
         <div class="note" style="margin:0 0 6px">Kamera</div>
         <div class="chips" id="camSel"></div>
       </div>
+      <div id="laneBox" hidden style="margin:12px 0">
+        <div class="note" style="margin:0 0 6px">Fahrbahn</div>
+        <div class="chips" id="laneSel">
+          <button class="btn" type="button" data-lane="getrennt">getrennt (Gegenverkehr)</button>
+          <button class="btn" type="button" data-lane="gleich">dieselbe Fahrbahn (Crash)</button>
+        </div>
+      </div>
       <div id="lkwBox" hidden style="margin:12px 0">
         <div class="note" style="margin:0 0 6px">Länge des Lkw</div>
         <div class="chips" id="lkwLen">
@@ -233,7 +240,7 @@ const BEREICHE = [
         start:{ obj:20, traeger:50 } },
       { id:"schwimmer", name:"Schwimmer mit der Strömung", szene:"fluss1d", frei:"fluss", L:60, tMax:600,
         intro:"Ein Schwimmer schwimmt in Strömungsrichtung. Eingestellt werden seine Schwimmgeschwindigkeit v₁ gegenüber dem Wasser und die Strömung v₂ gegenüber dem Ufer. Gegenüber dem Ufer ist er mit v = v₁ + v₂ unterwegs.",
-        frei0:{ vP:1.0, vT:0.5, xBo:3, D:25 },
+        frei0:{ vP:1.0, vT:0.5, xS:0, xBo:3, D:25 },
         v1:{ name:"Schwimmer gegenüber dem Wasser", min:0.2, max:2, step:0.05, def:1 },
         v2:{ name:"Strömung gegenüber dem Ufer", min:0, max:1.5, step:0.05, def:0.5 } },
       { id:"laufband", name:"Laufband am Flughafen", szene:"band", frei:"band", L:50, tMax:600,
@@ -245,14 +252,14 @@ const BEREICHE = [
   { id:"entgegen", kopf:"Teilbewegungen (gleichförmig)", name:"in entgegengesetzter Richtung", art:"1d", d:[1, -1],
     regel:"v = v₁ − v₂ und s = s₁ − s₂",
     kontexte:[
-      { id:"autos", name:"Autos: Pkw fällt zurück", szene:"strasse", L:400, tMax:30, kmh:true,
-        intro:"Ein Pkw fährt neben einem Lkw und lässt sich zurückfallen. Der Lkw fährt gegenüber der Straße mit v₁ nach rechts, der Pkw bewegt sich gegenüber dem Lkw mit v₂ nach hinten. Gesamtbewegung: der Pkw gegenüber der Straße.",
-        v1:{ name:"Lkw gegenüber der Straße", min:15, max:25, step:0.5, def:20 },
-        v2:{ name:"Pkw gegenüber dem Lkw (nach hinten)", min:1, max:10, step:0.5, def:4 },
-        start:{ obj:75, traeger:35 } },
+      { id:"autos", name:"Autos: aufeinander zu", szene:"strasse", frei:"strasse", L:400, tMax:600, kmh:true,
+        intro:"Ein Pkw und ein Lkw fahren aufeinander zu: der Pkw gegenüber der Straße mit v nach rechts, der Lkw mit v₁ nach links. Gegenüber dem Lkw nähert sich der Pkw mit v₂ = v + v₁, also ist v = v₂ − v₁. In den Einstellungen wählst du getrennte Fahrbahnen (Gegenverkehr) oder dieselbe Fahrbahn; dann krachen sie zusammen.",
+        frei0:{ vA:15, vL:10, xA:0, xL:100, D:120, LL:16.5, lane:"getrennt" },
+        v1:{ name:"Lkw gegenüber der Straße", min:0, max:40, step:0.5, def:10 },
+        v2:{ name:"Pkw gegenüber dem Lkw", min:0, max:40, step:0.5, def:25 } },
       { id:"schwimmer", name:"Schwimmer gegen die Strömung", szene:"fluss1d", frei:"fluss", L:60, tMax:600,
         intro:"Ein Schwimmer schwimmt gegen die Strömung nach rechts, das Wasser fließt nach links. Eingestellt werden seine Schwimmgeschwindigkeit v₁ gegenüber dem Wasser und die Strömung v₂ gegenüber dem Ufer. Gegenüber dem Ufer gilt v = v₁ − v₂. Ist die Strömung schneller als der Schwimmer, wird v negativ: Er treibt trotz Schwimmen zurück.",
-        frei0:{ vP:1.2, vT:0.5, xBo:3, D:25 },
+        frei0:{ vP:1.2, vT:0.5, xS:0, xBo:3, D:25 },
         v1:{ name:"Schwimmer gegenüber dem Wasser", min:0.2, max:2, step:0.05, def:1.2 },
         v2:{ name:"Strömung gegenüber dem Ufer", min:0, max:1.5, step:0.05, def:0.5 } },
       { id:"laufband", name:"Gegen das Laufband laufen", szene:"band", frei:"band", L:50, tMax:600,
@@ -300,8 +307,9 @@ const ft = t => fmt(t, 1) + " s";
 function kin(){
   const b = bereich(), k = kontext(), t = S.t;
   if (k.frei === "strasse"){ // Pkw und Lkw gegenüber der Straße vorgegeben, v₂ = Pkw gegenüber Lkw
-    const F = vals(), v1 = F.vL, v = F.vA, v2 = v - v1;
-    return { art:"1d", frei:"strasse", v1, v2, d1:1, d2:1, v, s1:v1 * t, s2:v2 * t, s:v * t, t, xA0:F.xA, xL0:F.xL, D:F.D, LL:F.LL };
+    const F = vals(), P = strassePos(F, b.d[1] < 0, t), v1 = P.uL, v = F.vA, v2 = v - v1;
+    return { art:"1d", frei:"strasse", gegen:P.gegen, same:P.same, tc:P.tc, crashed:P.crashed, v1, v2, d1:1, d2:b.d[1], v,
+      xA:P.xA, xT:P.xT, s1:P.xT - F.xL, s2:(P.xA - F.xA) - (P.xT - F.xL), s:P.xA - F.xA, t, xA0:F.xA, xL0:F.xL, D:F.D, LL:F.LL };
   }
   if (k.frei === "band"){ // Person geht mit v₁; nur auf dem Band kommt v₂ hinzu
     const F = vals(), d2 = b.d[1], v1 = F.vP, v2 = F.vT, vB = v1 + d2 * v2, st = bandState(F, d2, t);
@@ -312,7 +320,7 @@ function kin(){
   }
   if (k.frei){ // Körper und Träger (Wasser, Band) gegenüber dem Boden vorgegeben; v₁ = Körper gegenüber dem Träger
     const F = vals(), d2 = b.d[1], v1 = F.vP, v2 = F.vT, v = v1 + d2 * v2; // Schwimmer: v₁ gegenüber dem Wasser, Strömung v₂ gegenüber dem Ufer
-    return { art:"1d", frei:k.frei, v1, v2, d1:1, d2, v, s1:v1 * t, s2:v2 * t, s:v * t, t, D:F.D, xBo0:F.xBo, xBo:F.xBo + d2 * v2 * t };
+    return { art:"1d", frei:k.frei, v1, v2, d1:1, d2, v, s1:v1 * t, s2:v2 * t, s:v * t, t, D:F.D, xS0:F.xS || 0, xBo0:F.xBo, xBo:F.xBo + d2 * v2 * t };
   }
   const { v1, v2 } = vals();
   if (b.art === "1d"){
@@ -324,6 +332,14 @@ function kin(){
   return { art:"2d", v1, v2, v, s1:v1 * t, s2:v2 * t, s:v * t, t };
 }
 
+/* Autos: Lage der Fronten. Aufeinander zu auf derselben Fahrbahn: Crash, wenn sich die Fronten treffen (danach Stillstand) */
+function strassePos(F, gegen, t){
+  const uL = gegen ? -F.vL : F.vL, same = gegen && F.lane === "gleich";
+  let tc = Infinity;
+  if (same && F.vA - uL > 1e-9 && F.xL > F.xA) tc = (F.xL - F.xA) / (F.vA - uL);
+  const te = Math.min(t, tc);
+  return { gegen, same, tc, crashed:t >= tc, uL, xA:F.xA + F.vA * te, xT:F.xL + uL * te };
+}
 /* Laufband: Lage der Person zur Zeit t (vor dem Band v₁, auf dem Band v₁ ± v₂, dahinter wieder v₁) */
 function bandState(F, d2, t){
   const v1 = F.vP, vB = v1 + d2 * F.vT, Lb = F.Lb;
@@ -349,6 +365,11 @@ function tEnd(){
   const k = kontext(), m = kin();
   const lim = (x0, v, lo, hi) => v > 1e-9 ? (hi - x0) / v : v < -1e-9 ? (lo - x0) / v : Infinity;
   let te = k.tMax;
+  if (m.frei === "strasse" && m.gegen){ // aufeinander zu: bis kurz nach dem Crash oder bis sie aneinander vorbei sind
+    const close = m.v - m.v1, gap = m.xL0 - m.xA0;
+    te = isFinite(m.tc) ? m.tc + 2.5 : close > 1e-9 && gap > 0 ? (gap + m.LL + 4.5 + 25) / close : 10;
+    return Math.min(Math.max(te, 1), k.tMax);
+  }
   if (m.frei === "strasse"){ // bis beide Fahrzeuge das Ende der eingestellten Strecke erreicht haben (und der Überholvorgang vorbei ist)
     const ts = [], dx = m.xL0 - m.xA0, dv = m.v - m.v1;
     if (m.v > 1e-9 && m.xA0 < m.D) ts.push((m.D - m.xA0) / m.v);
@@ -818,13 +839,13 @@ function arrowPair(ctx, w, cx, y, v1, v, lab1, kk){
 
 /* --- Autos (gleiche Richtung): Startpunkte, Geschwindigkeiten und Lkw-Länge frei, maßstabsgetreu --- */
 function drawStrasseFrei(ctx, w, h){
-  const m = kin(), R = sceneRect(w, h), F = vals(), k = kontext();
-  const xA = m.xA0 + m.s, xT = m.xL0 + m.s1, mode = F.cam || "strasse";
-  const follow = mode === "pkw" ? xA - 2.25 : mode === "lkw" ? xT - m.LL / 2 : null;
-  const cam = camera(w, m.D, [m.xA0, m.xL0], [xA, xT], 4.5, false, follow), { sc, v0, X } = cam, f = sc;
+  const m = kin(), R = sceneRect(w, h), F = vals();
+  const xA = m.xA, xT = m.xT, mode = F.cam || "strasse", dL = m.gegen ? -1 : 1;   // dL: Fahrtrichtung des Lkw
+  const follow = mode === "pkw" ? xA - 2.25 : mode === "lkw" ? xT - dL * m.LL / 2 : null;
+  const cam = camera(w, m.D, [m.xA0, m.xL0 + (m.gegen ? m.LL : 0)], [xA, xT + (m.gegen ? m.LL : 0)], 4.5, false, follow), { sc, v0, X } = cam, f = sc;
   const carL = 4.5 * f, truckL = m.LL * f;
-  // Bezugsmaßstab: so sieht die Szene beim Standardzoom aus; Zoomen skaliert alles gemeinsam
-  const REF = refSc(w, k.frei0.D, 4.5), lane = 5.2 * REF, rh = 2 * lane + 8;
+  // Bezugsmaßstab: so sieht die Szene bei 50 m Zoom aus; Zoomen skaliert alles gemeinsam
+  const REF = refSc(w, 50, 4.5), lane = 5.2 * REF, rh = 2 * lane + 8;
   const Yc = Math.round(R.y + 100 + (R.h - 250) * 0.5), top = Yc - rh / 2, bot = Yc + rh / 2;
   const V = zoomView(ctx, w, h, cam, REF, Yc), Y = V.Y;
   drawSky(ctx, w, R, Y(skyH(R, top)), v0 * sc);
@@ -846,55 +867,103 @@ function drawStrasseFrei(ctx, w, h){
   V.end();
   drawRuler(ctx, w, h, cam);
 
-  const yA = Y(top + 4 + lane * 0.86), yT = Y(top + 4 + lane + lane * 0.9);
+  // Fahrstreifen: oben (fern) und unten (nah). Überholen: Pkw oben. Aufeinander zu: Pkw unten, Lkw oben oder auf derselben Fahrbahn.
+  const upY = top + 4 + lane * 0.86, loY = top + 4 + lane + lane * 0.9;
+  const pkwUp = !m.gegen, lkwUp = m.gegen && !m.same;
+  const yA = Y(pkwUp ? upY : loY), yT = Y(lkwUp ? upY : loY);
+  const laneSpan = up => up ? [Y(top + 4), Y(top + lane + 4)] : [Y(top + lane + 4), Y(bot - 4)];
   const tS = Y(top), bS = Y(bot), uT = Math.max(tS, R.y + 128), uB = Math.min(bS, h - 106);
   const pA = X(m.xA0), pL = X(m.xL0);
-  if (pA > -2 && pA < w){ line(ctx, pA, Y(top + 4), pA, Y(top + lane + 4), C.mark, 1.5, [4, 4]); text(ctx, "Pkw-Start", pA + 5, Math.max(Y(top + 4), R.y) + 12, C.mark, 11, "left", "middle", 600, false); }
-  if (pL > -2 && pL < w){ line(ctx, pL, Y(top + lane + 4), pL, Y(bot - 4), C.mark, 1.5, [4, 4]); text(ctx, "Lkw-Start", pL + 5, Math.min(Y(bot - 4), h) - 10, C.mark, 11, "left", "middle", 600, false); }
+  const startMark = (p, up, lab) => { if (p < -2 || p > w) return; const [a, b] = laneSpan(up); line(ctx, p, a, p, b, C.mark, 1.5, [4, 4]);
+    text(ctx, lab, p + 5, up ? Math.max(a, R.y) + 12 : Math.min(b, h) - 10, C.mark, 11, "left", "middle", 600, false); };
+  startMark(pA, pkwUp, "Pkw-Start"); startMark(pL, lkwUp, "Lkw-Start");
+  // Wertefelder: das obere Fahrzeug oben, das untere unten (bei derselben Fahrbahn: Lkw oben)
+  const sideA = pkwUp ? "top" : "bot", sideL = sideA === "top" ? "bot" : "top";
+  const rowY = (side, i) => side === "top" ? uT - [84, 116, 56, 32][i] : uB + [58, 92, 18, 38][i];   // 0 Geschwindigkeit, 1 Start, 2/3 Pfeile
   const edge = p => p < 60 ? ["← ", 60] : p > w - 60 ? [" →", w - 60] : ["", p];
   const eA = edge(pA), eL = edge(pL);
-  bubble(ctx, (eA[0] === "← " ? "← " : "") + "Pkw-Start: " + fmt(m.xA0, 0) + " m ✎" + (eA[0] === " →" ? " →" : ""), eA[1], uT - 116, C.muted, "xA", "center", 12);
-  bubble(ctx, (eL[0] === "← " ? "← " : "") + "Lkw-Start: " + fmt(m.xL0, 0) + " m ✎" + (eL[0] === " →" ? " →" : ""), eL[1], uB + 92, C.muted, "xL", "center", 12);
+  bubble(ctx, (eA[0] === "← " ? "← " : "") + "Pkw-Start: " + fmt(m.xA0, 0) + " m ✎" + (eA[0] === " →" ? " →" : ""), eA[1], rowY(sideA, 1), C.muted, "xA", "center", 12);
+  bubble(ctx, (eL[0] === "← " ? "← " : "") + "Lkw-Start: " + fmt(m.xL0, 0) + " m ✎" + (eL[0] === " →" ? " →" : ""), eL[1], rowY(sideL, 1), C.muted, "xL", "center", 12);
 
   if (S.show.trail && m.t > 0){
     line(ctx, pA, yA + 6, X(xA), yA + 6, C.s, 4);
     if (S.show.help) line(ctx, pL, yT + 6, X(xT), yT + 6, C.t1, 3, [8, 6]);
   }
-  headlight(ctx, X(xT), yT - 1.0 * f, f, 40); taillight(ctx, X(xT) - truckL, yT - 1.45 * f, f);
+  // Fahrzeuge; nach einem Crash leicht verdreht
+  const tilt = m.crashed ? Math.min(1, (m.t - m.tc) / 0.25) : 0;
+  ctx.save();
+  if (dL < 0){ ctx.translate(2 * X(xT), 0); ctx.scale(-1, 1); }   // Lkw fährt nach links: gespiegelt zeichnen
+  if (tilt){ ctx.translate(X(xT), yT); ctx.rotate(0.035 * tilt); ctx.translate(-X(xT), -yT); }
+  if (!m.crashed) headlight(ctx, X(xT), yT - 1.0 * f, f, 40);
+  taillight(ctx, X(xT) - truckL, yT - 1.45 * f, f);
   drawTruckNice(ctx, X(xT), yT, m.LL, f);
-  headlight(ctx, X(xA), yA - 0.86 * f, f, 35); taillight(ctx, X(xA) - carL, yA - 1.0 * f, f);
+  ctx.restore();
+  ctx.save();
+  if (tilt){ ctx.translate(X(xA), yA); ctx.rotate(-0.09 * tilt); ctx.translate(-X(xA), -yA); }
+  if (!m.crashed) headlight(ctx, X(xA), yA - 0.86 * f, f, 35);
+  taillight(ctx, X(xA) - carL, yA - 1.0 * f, f);
   drawCarNice(ctx, X(xA), yA, carL, C.car);
+  ctx.restore();
+  if (m.crashed) drawCrash(ctx, X(xA), yA - 0.9 * f, f, m.t - m.tc);
   if (S.t === 0 && !S.running){
     const hw = Math.max(truckL, 30), hh = Math.max(4.2 * f, 24);
-    S.hits.push({ x:X(xT) - truckL / 2 - hw / 2, y:yT - hh, w:hw, h:hh + 4, act:"dragL" });
+    S.hits.push({ x:X(xT) - dL * truckL / 2 - hw / 2, y:yT - hh, w:hw, h:hh + 4, act:"dragL" });
     const cw = Math.max(carL, 24), ch = Math.max(1.8 * f, 20);
     S.hits.push({ x:X(xA) - carL / 2 - cw / 2, y:yA - ch, w:cw, h:ch + 4, act:"dragA" });
   }
-  const kk = 2.8, cA = X(xA) - carL / 2, cT = X(xT) - truckL / 2;
+  const kk = 2.8, cA = X(xA) - carL / 2, cT = X(xT) - dL * truckL / 2;
+  const vNow = m.crashed ? 0 : m.v, v1Now = m.crashed ? 0 : m.v1;
   if (S.show.arrows){
-    const y1 = uT - 56, y2 = uT - 32;
-    arrow(ctx, cA, y1, cA + m.v2 * kk, y1, C.t1, 3);
-    const l2 = "v₂ = " + fv(m.v2) + " (Pkw gegenüber Lkw)", e2 = cA + Math.max(m.v2 * kk, 0) + 8;
-    ctx.save(); ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily; const w2 = ctx.measureText(l2).width; ctx.restore();
-    if (e2 + w2 < w - 6) text(ctx, l2, e2, y1, C.t1, 13); else text(ctx, l2, cA + Math.min(m.v2 * kk, 0) - 8, y1, C.t1, 13, "right");
-    arrow(ctx, cA, y2, cA + m.v * kk, y2, C.v, 3.4);
-    text(ctx, "v", cA + m.v * kk + 8 > w - 14 ? cA - 10 : cA + m.v * kk + 8, y2, C.v, 15, cA + m.v * kk + 8 > w - 14 ? "right" : "left");
-    const y3 = uB + 30;
-    arrow(ctx, cT, y3, cT + m.v1 * kk, y3, C.t1, 3.4);
-    text(ctx, "v₁", cT + m.v1 * kk + 8, y3, C.t1, 15);
+    const lab = (x, y, s, col, vv, size = 13) => {
+      ctx.save(); ctx.font = "600 " + size + "px " + getComputedStyle(document.body).fontFamily; const tw = ctx.measureText(s).width; ctx.restore();
+      const e = x + Math.max(vv * kk, 0) + 8;
+      if (e + tw < w - 6) text(ctx, s, e, y, col, size); else text(ctx, s, x + Math.min(vv * kk, 0) - 8, y, col, size, "right");
+    };
+    const y1 = rowY(sideA, 2), y2 = rowY(sideA, 3);
+    arrow(ctx, cA, y1, cA + (m.crashed ? 0 : m.v2) * kk, y1, C.t1, 3); lab(cA, y1, "v₂ = " + fv(m.crashed ? 0 : m.v2) + " (Pkw gegenüber Lkw)", C.t1, m.crashed ? 0 : m.v2);
+    arrow(ctx, cA, y2, cA + vNow * kk, y2, C.v, 3.4); lab(cA, y2, "v", C.v, vNow, 15);
+    const y3 = rowY(sideL, sideL === "top" ? 3 : 2);
+    arrow(ctx, cT, y3, cT + v1Now * kk, y3, C.t1, 3.4); lab(cT, y3, "v₁", C.t1, v1Now, 15);
   }
-  bubble(ctx, "Pkw: v = " + fv(m.v) + " (" + fmt(m.v * 3.6, 0) + " km/h) ✎", cA, uT - 84, C.v, "vA", "center", 13);
-  bubble(ctx, "Lkw: v₁ = " + fv(m.v1) + " (" + fmt(m.v1 * 3.6, 0) + " km/h) ✎", cT, uB + 58, C.t1, "vL", "center", 13);
+  bubble(ctx, "Pkw: v = " + fv(m.v) + " (" + fmt(m.v * 3.6, 0) + " km/h) ✎", cA, rowY(sideA, 0), C.v, "vA", "center", 13);
+  bubble(ctx, "Lkw: v₁ = " + (m.gegen ? fv(-m.v1) + " nach links" : fv(m.v1)) + " (" + fmt(Math.abs(m.v1) * 3.6, 0) + " km/h) ✎", cT, rowY(sideL, 0), C.t1, "vL", "center", 13);
   if (S.show.trail && m.t > 0) text(ctx, "s = " + fs(m.s), Math.max(pA, 4) + 6, yA + 20, C.s, 13, "left");
-  if (S.show.trail && S.show.help && m.t > 0) text(ctx, "s₁ = " + fs(m.s1), Math.max(pL, 4) + 6, yT + 20, C.t1, 13, "left");
+  if (S.show.trail && S.show.help && m.t > 0) text(ctx, "s₁ = " + fs(m.s1), Math.max(Math.min(pL, X(xT)), 4) + 6, yT + 20, C.t1, 13, "left");
+  if (m.crashed) text(ctx, "Crash!", X(xA), Math.max(Math.min(yA, yT) - 3.2 * f - 24, R.y + 20), "#e0402c", 22, "center", "middle", 800, true);
   if (follow !== null){ // Sicht aus dem mitfahrenden Fahrzeug
-    const pkw = mode === "pkw", other = pkw ? m.v1 - m.v : m.v - m.v1, own = pkw ? m.v : m.v1;
+    const pkw = mode === "pkw", other = pkw ? v1Now - vNow : vNow - v1Now, own = pkw ? vNow : v1Now;
     const P = pkw ? "Pkw" : "Lkw", O = pkw ? "der Lkw" : "der Pkw";
     followInfo(ctx, w, h, "Kamera fährt mit dem " + P + " mit.", ["Von dort aus gesehen bewegen sich " + O + " mit " + fv(other) + " und die Straße mit " + fv(-own) + "."]);
   }
   timeBadge(ctx, w, h, R);
 }
-
+/* Aufprall: Blitz, Splitter und Rauch an der Stoßstelle (tt: Zeit seit dem Aufprall) */
+function drawCrash(ctx, x, y, f, tt){
+  const s = Math.max(1, f / 12), g = Math.min(1, tt / 0.2);
+  ctx.save();
+  // Rauch
+  for (let i = 0; i < 7; i++){
+    const a = hash(i * 3.7) * Math.PI - Math.PI, r = (0.6 + tt * (0.8 + hash(i) * 0.8)) * 14 * s, rr = (6 + tt * 10 + hash(i * 5) * 6) * s;
+    ctx.globalAlpha = Math.max(0, 0.45 - tt * 0.12); ctx.fillStyle = C.dark ? "#6b7280" : "#9aa1ab";
+    ctx.beginPath(); ctx.arc(x + Math.cos(a) * r, y - 10 * s - tt * 18 * s + Math.sin(a) * r * 0.5, rr, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // Blitz (Zacken-Stern)
+  const R0 = (14 + 12 * g) * s * (tt < 0.6 ? 1 : Math.max(0.4, 1 - (tt - 0.6)));
+  for (const [rf, col] of [[1, "#ff7a1a"], [0.62, "#ffd23a"], [0.3, "#fff6c8"]]){
+    ctx.fillStyle = col; ctx.beginPath();
+    for (let k = 0; k < 16; k++){ const a = k / 16 * Math.PI * 2, r = R0 * rf * (k % 2 ? 0.5 : 1) * (0.85 + 0.3 * hash(k * 2.1)); k ? ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r) : ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill();
+  }
+  // Splitter fliegen auseinander und fallen
+  for (let i = 0; i < 14; i++){
+    const a = -Math.PI * (0.1 + 0.8 * hash(i * 1.3)), sp = (30 + 50 * hash(i * 4.1)) * s, ti = Math.min(tt, 1.2);
+    const px = x + Math.cos(a) * sp * ti * (hash(i * 7) > 0.5 ? 1 : -1), py = y + Math.sin(a) * sp * ti + 60 * s * ti * ti;
+    ctx.fillStyle = i % 3 ? (C.dark ? "#cfd8e3" : "#e8eef5") : "#3a4a5a";
+    ctx.save(); ctx.translate(px, py); ctx.rotate(tt * 8 + i); ctx.fillRect(-2 * s, -1 * s, 4 * s, 2 * s); ctx.restore();
+  }
+  ctx.restore();
+}
 /* Hinweis unten links, wenn die Kamera mitfährt (bricht bei schmalem Bild um) */
 function followInfo(ctx, w, h, head, rest){
   ctx.save(); ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily;
@@ -926,7 +995,7 @@ function drawBuoyTop(ctx, x, y, f, t){
 /* --- Schwimmer und Strömung: beide Geschwindigkeiten gegenüber dem Ufer, maßstabsgetreu --- */
 function drawFlussFrei(ctx, w, h){
   const m = kin(), R = sceneRect(w, h), dk = C.dark, k = kontext();
-  const x0 = 0, xS = x0 + m.s, mode = vals().cam || "ufer";
+  const x0 = m.xS0, xS = x0 + m.s, mode = vals().cam || "ufer";
   const follow = mode === "schwimmer" ? xS - 0.9 : mode === "boje" ? m.xBo : null;
   const cam = camera(w, m.D, [x0, m.xBo0], [xS], 2.2, true, follow), { sc, v0, X } = cam, f = sc;
   const REF = refSc(w, k.frei0.D, 2.2);
@@ -998,6 +1067,9 @@ function drawFlussFrei(ctx, w, h){
   if (S.show.arrows) arrowPair(ctx, w, cx, Math.max(sy - 0.6 * f - 10, R.y + 80), m.v1, m.v, "Schwimmer gegenüber dem Wasser", kk);
   if (S.show.arrows){ const ay = Math.min(wbS, h - 100) - 30; arrow(ctx, cx, ay, cx + m.d2 * m.v2 * kk, ay, C.t2, 3); }
   bubble(ctx, "Schwimmer gegenüber dem Wasser: v₁ = " + fv(m.v1) + " ✎", cx, uT - 26, C.t1, "vP", "center", 13);
+  const eS = pS < 60 ? "← " : pS > w - 60 ? "→ " : "";
+  bubble(ctx, eS + "Schwimmer startet bei " + fmt(m.xS0, 0) + " m ✎", Math.max(60, Math.min(w - 60, pS)), uT - 60, C.muted, "xS", "center", 12);
+  if (S.t === 0 && !S.running){ const hw = Math.max(1.9 * f, 30), hh = Math.max(0.6 * f, 22); S.hits.push({ x:pO - hw, y:sy - hh / 2, w:hw + 6, h:hh, act:"dragS" }); }
   bubble(ctx, "Strömung: v₂ = " + fv(m.v2) + " ✎", cx, uB + 24, C.t2, "vT", "center", 13);
   const pB0 = X(m.xBo0), eB = pB0 < 60 ? "← " : pB0 > w - 60 ? "→ " : "";
   bubble(ctx, eB + "Boje startet bei " + fmt(m.xBo0, 0) + " m ✎", Math.max(60, Math.min(w - 60, pB0)), uB + 58, C.muted, "xBo", "center", 12);
@@ -1524,15 +1596,15 @@ function timeBadge(ctx, w, h, R){
 function diaData(){
   const k = kontext(), F = vals(), d2 = bereich().d[1], T = tEnd();
   if (k.frei === "strasse"){
-    const m = kin();
+    const g = d2 < 0, P = t => strassePos(F, g, t);
     return { T, ref:"gegenüber der Straße", series:[
-      { lab:"Pkw", col:C.v, x:t => m.xA0 + m.v * t, v:() => m.v },
-      { lab:"Lkw", col:C.t1, x:t => m.xL0 + m.v1 * t, v:() => m.v1 }] };
+      { lab:"Pkw", col:C.v, x:t => P(t).xA, v:t => P(t).crashed ? 0 : F.vA },
+      { lab:"Lkw", col:C.t1, x:t => P(t).xT, v:t => P(t).crashed ? 0 : P(t).uL }] };
   }
   if (k.frei === "fluss"){
     const v = F.vP + d2 * F.vT, vb = d2 * F.vT;
     return { T, ref:"gegenüber dem Ufer", series:[
-      { lab:"Schwimmer", col:C.v, x:t => v * t, v:() => v },
+      { lab:"Schwimmer", col:C.v, x:t => (F.xS || 0) + v * t, v:() => v },
       { lab:"Boje", col:C.t2, x:t => F.xBo + vb * t, v:() => vb }] };
   }
   if (k.frei === "band"){
@@ -1634,7 +1706,8 @@ function applyKontext(){
   $("ghostRow").hidden = k.szene === "strasse" || k.szene === "kran";
   $("paramRow").hidden = !k.frei; $("diaRow").hidden = !k.frei;
   $("sliders").hidden = !!k.frei; $("freiNote").hidden = !k.frei; $("lkwBox").hidden = k.frei !== "strasse"; buildCam();
-  $("freiNote").textContent = FREI_NOTE[k.frei] || "";
+  $("laneBox").hidden = !(k.frei === "strasse" && bereich().d[1] < 0);
+  $("freiNote").textContent = FREI_NOTE[k.frei + (bereich().d && bereich().d[1] < 0 ? "G" : "")] || FREI_NOTE[k.frei] || "";
   $("ghostRow").hidden = $("ghostRow").hidden || !!k.frei;
   if (k.frei === "strasse") markLkw();
   closeEdit();
@@ -1643,14 +1716,17 @@ function applyKontext(){
   updateOut(); render();
 }
 const FREI_NOTE = {
+  strasseG:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Unter „Fahrbahn“ fahren sie getrennt aneinander vorbei oder auf derselben Fahrbahn ineinander. Mit dem Mausrad (oder + und −) zoomst du. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren.",
   strasse:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu, die Leitpfosten stehen alle 50 m. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren: Dann steht dieses Fahrzeug in der Bildmitte still und alles andere zieht vorbei.",
   fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Die Boje treibt mit der Strömung; ihren Startpunkt kannst du anklicken oder die Boje vor dem Start verschieben. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Mit dem Mausrad (oder + und −) zoomst du. Der Schwimmer ist maßstabsgetreu, die Laufzeit beträgt 60 s.",
   band:"Gehgeschwindigkeit v₁ der Person, Geschwindigkeit v₂ des Laufbands (gegenüber dem Boden), Bandlänge und Bandanfang stellst du direkt in der Szene ein: Wert anklicken. Die Person kannst du vor dem Start auch verschieben; die 0 m liegt immer an ihrem Startpunkt. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit der Person mit. Alles ist maßstabsgetreu, das Geländer ist 1 m hoch."
 };
 function markLkw(){
-  const L = vals().LL;
+  const L = vals().LL, ln = vals().lane || "getrennt";
   document.querySelectorAll("#lkwLen .btn").forEach(b => b.setAttribute("aria-pressed", String(parseFloat(b.dataset.l) === L)));
+  document.querySelectorAll("#laneSel .btn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lane === ln)));
 }
+document.querySelectorAll("#laneSel .btn").forEach(b => b.addEventListener("click", () => { vals().lane = b.dataset.lane; markLkw(); S.t = 0; setPlay(false); render(); }));
 const CAMS = {
   strasse:[["strasse", "steht an der Straße"], ["pkw", "fährt mit dem Pkw mit"], ["lkw", "fährt mit dem Lkw mit"]],
   fluss:[["ufer", "steht am Ufer"], ["boje", "fährt mit der Boje mit"], ["schwimmer", "fährt mit dem Schwimmer mit"]]
@@ -1730,22 +1806,23 @@ function render(){
 /* ---------- Eingabe in der Szene ---------- */
 S.hits = [];
 const EDIT_LAB = {
+  strasseG:{ vA:"Pkw gegenüber der Straße (nach rechts): v =", vL:"Lkw gegenüber der Straße (nach links): v₁ =", xA:"Pkw startet bei", xL:"Lkw startet bei" },
   strasse:{ vA:"Pkw gegenüber der Straße: v =", vL:"Lkw gegenüber der Straße: v₁ =", xA:"Pkw startet bei", xL:"Lkw startet bei" },
-  fluss:{ vP:"Schwimmer gegenüber dem Wasser: v₁ =", vT:"Strömung gegenüber dem Ufer: v₂ =", xBo:"Die Boje startet bei (Start des Schwimmers = 0 m)" },
+  fluss:{ vP:"Schwimmer gegenüber dem Wasser: v₁ =", vT:"Strömung gegenüber dem Ufer: v₂ =", xBo:"Die Boje startet bei", xS:"Der Schwimmer startet bei" },
   band:{ vP:"Person geht (gegenüber Boden bzw. Band) mit v₁ =", vT:"Laufband gegenüber dem Boden: v₂ =", Lb:"Länge des Laufbands", xB:"Das Band beginnt bei (Start der Person = 0 m)" }
 };
 const gleich = () => bereich().d[1] > 0;
 const EDIT_RANGE = {
   strasse:{ vA:[0, 80], vL:[0, 80] },
   // Der Schwimmer schwimmt gegenüber dem Wasser immer vorwärts (v₁ ≥ 0)
-  fluss:{ vP:[0, 2.5], vT:[0, 5], xBo:[-200, 200] },
+  fluss:{ vP:[0, 2.5], vT:[0, 5], xBo:[-200, 200], xS:[-200, 200] },
   band:{ vP:[0.1, 4], vT:[0, 3], xB:F => [1 - F.Lb, 100], Lb:F => [Math.max(2, 1 - F.xB), 500] }
 };
 const rangeOf = k => { const r = (EDIT_RANGE[kontext().frei] || {})[k]; return typeof r === "function" ? r(vals()) : r; };
 const EDIT = {};
-for (const [k, speed, lo, hi, reset] of [["vA", true, -80, 80], ["vL", true, 0, 80], ["vT", true, 0, 5], ["vP", true, 0, 5], ["xA", false, -5000, 50000, true], ["xL", false, -5000, 50000, true], ["xB", false, -500, 100, true], ["xBo", false, -200, 200, true], ["Lb", false, 2, 500, true]]){
+for (const [k, speed, lo, hi, reset] of [["vA", true, -80, 80], ["vL", true, 0, 80], ["vT", true, 0, 5], ["vP", true, 0, 5], ["xA", false, -5000, 50000, true], ["xL", false, -5000, 50000, true], ["xB", false, -500, 100, true], ["xBo", false, -200, 200, true], ["xS", false, -200, 200, true], ["Lb", false, 2, 500, true]]){
   EDIT[k] = { speed, get:F => F[k], set:(F, x) => { F[k] = x; if (reset) S.t = 0; },
-    get lab(){ return (EDIT_LAB[kontext().frei] || {})[k] || k; },
+    get lab(){ const fr = kontext().frei; return ((!gleich() && EDIT_LAB[fr + "G"]) || EDIT_LAB[fr] || {})[k] || k; },
     get hint(){
       const r = rangeOf(k), u = speed ? (kontext().kmh ? "m/s (oder z. B. 90 km/h)" : "m/s (oder km/h)") : "m";
       if (!r || kontext().frei === "strasse") return u;
@@ -1799,7 +1876,7 @@ cScene.addEventListener("pointermove", ev => {
 cScene.addEventListener("pointerdown", ev => {
   const h = hitAt(ev);
   if (!h){ if (!$("edit").hidden){ closeEdit(); } return; }
-  const DRAG = { dragL:"xL", dragA:"xA", dragP:"xB", dragB:"xBo" }; // Person ziehen = Band relativ zur Person verschieben
+  const DRAG = { dragL:"xL", dragA:"xA", dragP:"xB", dragB:"xBo", dragS:"xS" }; // Person ziehen = Band relativ zur Person verschieben
   if (DRAG[h.H.act]){ const key = DRAG[h.H.act]; drag = { cx:ev.clientX, x0:vals()[key], key, sg:key === "xB" ? -1 : 1 }; cScene.setPointerCapture(ev.pointerId); ev.preventDefault(); return; }
   ev.preventDefault();
   if (h.H.act === "zoomIn" || h.H.act === "zoomOut") return zoom(h.H.act === "zoomIn" ? 1 / 1.25 : 1.25);
