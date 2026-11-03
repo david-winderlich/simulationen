@@ -760,12 +760,12 @@ function drawRoad(ctx, V, top, rh){
   ctx.fillStyle = "rgba(0,0,0,.07)";
   for (const f of [0.18, 0.36, 0.64, 0.82]) ctx.fillRect(xa, top + rh * f - 4, W, 8);
   if (z < 0.5) return;
-  const c = 9;
+  const c = 9, g = 1.6 / Math.max(1, Math.sqrt(z / 2)); // Körnung wird beim Ranzoomen feiner
   for (let [i, i1] = span(V, off, c); i < i1; i++){
     for (let j = 0; j < rh / c; j++){
       const q = hash(i * 17.3 + j * 3.7); if (q < 0.55) continue;
       ctx.fillStyle = q > 0.8 ? (dk ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.10)") : "rgba(0,0,0,.10)";
-      ctx.fillRect(i * c - off + hash(i + j * 7) * c, top + j * c + hash(i * 2 + j) * c, 1.6, 1.6);
+      ctx.fillRect(i * c - off + hash(i + j * 7) * c, top + j * c + hash(i * 2 + j) * c, g, g);
     }
   }
   ctx.fillStyle = dk ? "rgba(0,0,0,.25)" : "rgba(90,80,60,.35)";
@@ -796,32 +796,36 @@ function taillight(ctx, xr, y, f){
 
 /* ---------- Gemeinsamer Rahmen für die Szenen mit Eingabe direkt im Bild ---------- */
 /* starts: Startpunkte (m), fronts: aktuelle Fronten (m), backM: Platz links für die Objektlänge (m) */
-function camera(w, D0, starts, fronts, backM, single, follow = null){
+function camera(w, D0, starts, fronts, backM, single, follow = null, focus = null){
   const padR = 40;
   if (follow !== null){ // Kamera fährt mit einem Körper mit und hält ihn in der Bildmitte
     const D = D0, sc = (w - 30 - padR) / (D + backM), padL = 30 + backM * sc, v0 = follow - (D - backM) / 2;
     S.frame = { sc };
     return { D, sc, v0, padL, X:xw => padL + (xw - v0) * sc };
   }
-  const base = Math.min(0, ...starts);
-  const D = Math.max(D0, (Math.max(...starts) - base + 2) / 0.94);
+  const base = Math.min(0, ...starts), need = (Math.max(...starts) - base + 2) / 0.94;
+  // Aufeinander zu (focus = Treffpunkt) und Einzelkörper: Ranzoomen enger als alle Startpunkte erlaubt
+  const D = focus !== null || single ? D0 : Math.max(D0, need);
   const sc = (w - 30 - padR) / (D + backM), padL = 30 + backM * sc;
   const lead = Math.max(...fronts), trail = Math.min(...fronts);
-  let v0 = Math.max(single ? base - 0.06 * D : base, lead - 0.94 * D);
+  // Haltepunkt des führenden Körpers: 94 % rechts im Bild, beim Ranzoomen gleitend bis zur Bildmitte
+  const hold = 0.5 + 0.44 * Math.max(0, Math.min(1, (D / need - 0.5) / 0.5));
+  let v0 = Math.max(single ? base - 0.06 * D : base, lead - hold * D);
+  if (focus !== null && D < need) v0 = Math.max(base, Math.min(base + need - D, focus - (D - backM) / 2));
   if (single && trail < v0 + 0.06 * D) v0 = trail - 0.06 * D;
   S.frame = { sc };
   return { D, sc, v0, padL, X:xw => padL + (xw - v0) * sc };
 }
 function drawRuler(ctx, w, h, cam){
   const { D, sc, v0, X } = cam, ry = h - 16, xEnd = X(v0 + D);
-  const step = niceStep(Math.max(D / 8, 64 / sc));
+  const step = niceStep(Math.max(D / 8, 64 / sc)), dg = step < 0.1 ? 2 : step < 1 ? 1 : 0;
   line(ctx, X(v0), ry, xEnd, ry, C.muted, 1);
   for (let xw = Math.ceil(v0 / step) * step; xw < v0 + D - 1e-6; xw += step){
     line(ctx, X(xw), ry - 5, X(xw), ry + 1, C.muted, 1);
-    if (X(xw) < xEnd - 40) text(ctx, fmt(xw, 0) + " m", X(xw), ry - 12, C.muted, 11, "center", "middle", 500, true);
+    if (X(xw) < xEnd - 40) text(ctx, fmt(xw, dg) + " m", X(xw), ry - 12, C.muted, 11, "center", "middle", 500, true);
   }
   line(ctx, xEnd, ry - 6, xEnd, ry + 1, C.fg, 1.5);
-  text(ctx, fmt(v0 + D, 0) + " m", xEnd, ry - 12, C.fg, 11, "center", "middle", 600, true);
+  text(ctx, fmt(v0 + D, dg) + " m", xEnd, ry - 12, C.fg, 11, "center", "middle", 600, true);
   bubble(ctx, "−", w - 72, ry - 40, C.fg, "zoomOut", "center", 15);
   bubble(ctx, "+", w - 40, ry - 40, C.fg, "zoomIn", "center", 15);
   text(ctx, "Zoom (Mausrad)", w - 92, ry - 40, C.muted, 12, "right", "middle", 500, true);
@@ -842,12 +846,19 @@ function drawStrasseFrei(ctx, w, h){
   const m = kin(), R = sceneRect(w, h), F = vals();
   const xA = m.xA, xT = m.xT, mode = F.cam || "strasse", dL = m.gegen ? -1 : 1;   // dL: Fahrtrichtung des Lkw
   const follow = mode === "pkw" ? xA - 2.25 : mode === "lkw" ? xT - dL * m.LL / 2 : null;
-  const cam = camera(w, m.D, [m.xA0, m.xL0 + (m.gegen ? m.LL : 0)], [xA, xT + (m.gegen ? m.LL : 0)], 4.5, false, follow), { sc, v0, X } = cam, f = sc;
+  const vr = m.v - m.v1, meet = m.gegen ? (vr > 1e-9 ? m.xA0 + m.v * (m.xL0 - m.xA0) / vr : (m.xA0 + m.xL0) / 2) : null; // Treffpunkt der Fronten
+  const cam = camera(w, m.D, [m.xA0, m.xL0 + (m.gegen ? m.LL : 0)], [xA, xT + (m.gegen ? m.LL : 0)], 4.5, false, follow, meet), { sc, v0, X } = cam, f = sc;
   const carL = 4.5 * f, truckL = m.LL * f;
   // Bezugsmaßstab: so sieht die Szene bei 50 m Zoom aus; Zoomen skaliert alles gemeinsam
   const REF = refSc(w, 50, 4.5), lane = 5.2 * REF, rh = 2 * lane + 8;
   const Yc = Math.round(R.y + 100 + (R.h - 250) * 0.5), top = Yc - rh / 2, bot = Yc + rh / 2;
-  const V = zoomView(ctx, w, h, cam, REF, Yc), Y = V.Y;
+  // Fahrstreifen: oben (fern) und unten (nah). Überholen: Pkw oben. Aufeinander zu: Pkw unten, Lkw oben oder auf derselben Fahrbahn.
+  const upY = top + 4 + lane * 0.86, loY = top + 4 + lane + lane * 0.9;
+  const pkwUp = !m.gegen, lkwUp = m.gegen && !m.same;
+  // Zoom-Drehpunkt (senkrecht): am gewählten Fahrzeug, sonst Straßenmitte bzw. gemeinsame Fahrbahn
+  const pivY = mode === "pkw" ? (pkwUp ? upY : loY) - 0.8 * REF : mode === "lkw" ? (lkwUp ? upY : loY) - 1.6 * REF
+    : m.same ? loY - 1.2 * REF : Yc;
+  const V = zoomView(ctx, w, h, cam, REF, pivY), Y = V.Y;
   drawSky(ctx, w, R, Y(skyH(R, top)), v0 * sc);
   V.begin();
   drawLandscape(ctx, V, R, top, bot);
@@ -867,12 +878,15 @@ function drawStrasseFrei(ctx, w, h){
   V.end();
   drawRuler(ctx, w, h, cam);
 
-  // Fahrstreifen: oben (fern) und unten (nah). Überholen: Pkw oben. Aufeinander zu: Pkw unten, Lkw oben oder auf derselben Fahrbahn.
-  const upY = top + 4 + lane * 0.86, loY = top + 4 + lane + lane * 0.9;
-  const pkwUp = !m.gegen, lkwUp = m.gegen && !m.same;
   const yA = Y(pkwUp ? upY : loY), yT = Y(lkwUp ? upY : loY);
   const laneSpan = up => up ? [Y(top + 4), Y(top + lane + 4)] : [Y(top + lane + 4), Y(bot - 4)];
-  const tS = Y(top), bS = Y(bot), uT = Math.max(tS, R.y + 128), uB = Math.min(bS, h - 106);
+  let info = null; const vNow = m.crashed ? 0 : m.v, v1Now = m.crashed ? 0 : m.v1;
+  if (follow !== null){ // Sicht aus dem mitfahrenden Fahrzeug
+    const pkw = mode === "pkw", other = pkw ? v1Now - vNow : vNow - v1Now, own = pkw ? vNow : v1Now;
+    const P = pkw ? "Pkw" : "Lkw", O = pkw ? "der Lkw" : "der Pkw";
+    info = ["Kamera fährt mit dem " + P + " mit.", "Von dort aus gesehen bewegen sich " + O + " mit " + fv(other) + " und die Straße mit " + fv(-own) + "."];
+  }
+  const tS = Y(top), bS = Y(bot), uT = Math.max(tS, R.y + 128), uB = Math.min(bS, h - 106, lowLimit(ctx, w, h, info && info.join(" ")) - 92);
   const pA = X(m.xA0), pL = X(m.xL0);
   const startMark = (p, up, lab) => { if (p < -2 || p > w) return; const [a, b] = laneSpan(up); line(ctx, p, a, p, b, C.mark, 1.5, [4, 4]);
     text(ctx, lab, p + 5, up ? Math.max(a, R.y) + 12 : Math.min(b, h) - 10, C.mark, 11, "left", "middle", 600, false); };
@@ -912,7 +926,6 @@ function drawStrasseFrei(ctx, w, h){
     S.hits.push({ x:X(xA) - carL / 2 - cw / 2, y:yA - ch, w:cw, h:ch + 4, act:"dragA" });
   }
   const kk = 2.8, cA = X(xA) - carL / 2, cT = X(xT) - dL * truckL / 2;
-  const vNow = m.crashed ? 0 : m.v, v1Now = m.crashed ? 0 : m.v1;
   if (S.show.arrows){
     const lab = (x, y, s, col, vv, size = 13) => {
       ctx.save(); ctx.font = "600 " + size + "px " + getComputedStyle(document.body).fontFamily; const tw = ctx.measureText(s).width; ctx.restore();
@@ -930,11 +943,7 @@ function drawStrasseFrei(ctx, w, h){
   if (S.show.trail && m.t > 0) text(ctx, "s = " + fs(m.s), Math.max(pA, 4) + 6, yA + 20, C.s, 13, "left");
   if (S.show.trail && S.show.help && m.t > 0) text(ctx, "s₁ = " + fs(m.s1), Math.max(Math.min(pL, X(xT)), 4) + 6, yT + 20, C.t1, 13, "left");
   if (m.crashed) text(ctx, "Crash!", X(xA), Math.max(Math.min(yA, yT) - 3.2 * f - 24, R.y + 20), "#e0402c", 22, "center", "middle", 800, true);
-  if (follow !== null){ // Sicht aus dem mitfahrenden Fahrzeug
-    const pkw = mode === "pkw", other = pkw ? v1Now - vNow : vNow - v1Now, own = pkw ? vNow : v1Now;
-    const P = pkw ? "Pkw" : "Lkw", O = pkw ? "der Lkw" : "der Pkw";
-    followInfo(ctx, w, h, "Kamera fährt mit dem " + P + " mit.", ["Von dort aus gesehen bewegen sich " + O + " mit " + fv(other) + " und die Straße mit " + fv(-own) + "."]);
-  }
+  if (info) followInfo(ctx, w, h, info[0], [info[1]]);
   timeBadge(ctx, w, h, R);
 }
 /* Aufprall: Blitz, Splitter und Rauch an der Stoßstelle (tt: Zeit seit dem Aufprall) */
@@ -965,12 +974,19 @@ function drawCrash(ctx, x, y, f, tt){
   ctx.restore();
 }
 /* Hinweis unten links, wenn die Kamera mitfährt (bricht bei schmalem Bild um) */
-function followInfo(ctx, w, h, head, rest){
+function infoLines(ctx, w, str){
   ctx.save(); ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily;
-  const words = (head + " " + rest.join(" ")).split(" "), L = [], maxW = Math.min(w - 28, 560);
+  const words = str.split(" "), L = [], maxW = Math.min(w - 28, 560);
   let cur = "";
   for (const wd of words){ const t = cur ? cur + " " + wd : wd; if (ctx.measureText(t).width > maxW && cur){ L.push(cur); cur = wd; } else cur = t; }
   if (cur) L.push(cur);
+  ctx.restore(); return L;
+}
+/* Unterste erlaubte Zeile für Wertefelder: über der Zeitanzeige bzw. über dem Kamera-Hinweis */
+function lowLimit(ctx, w, h, info){ return info ? h - 103 - 19 * (infoLines(ctx, w, info).length - 1) - 30 : h - 106; }
+function followInfo(ctx, w, h, head, rest){
+  const L = infoLines(ctx, w, head + " " + rest.join(" "));
+  ctx.save(); ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily;
   const bw = Math.max(...L.map(t => ctx.measureText(t).width)) + 16, y0 = h - 103 - 19 * (L.length - 1) - 13;
   ctx.fillStyle = C.card; ctx.globalAlpha = 0.88; rrect(ctx, 6, y0, bw, 19 * L.length + 8, 8); ctx.fill(); ctx.globalAlpha = 1;
   ctx.restore();
@@ -1000,7 +1016,8 @@ function drawFlussFrei(ctx, w, h){
   const cam = camera(w, m.D, [x0, m.xBo0], [xS], 2.2, true, follow), { sc, v0, X } = cam, f = sc;
   const REF = refSc(w, k.frei0.D, 2.2);
   const wh = Math.max(110, Math.min(240, R.h * 0.34));
-  const wt = Math.round(R.y + 110 + (R.h - 110 - 150 - wh) * 0.5), wb = wt + wh, bank = 16, Yc = wt + wh / 2;
+  const wt = Math.round(R.y + 110 + (R.h - 110 - 150 - wh) * 0.5), wb = wt + wh, bank = 16;
+  const Yc = mode === "boje" ? wt + wh * 0.76 : wt + wh * 0.42; // Zoom-Drehpunkt: Boje bzw. Schwimmer
   const V = zoomView(ctx, w, h, cam, REF, Yc), Y = V.Y, z = V.z, off = V.off, W = V.xb - V.xa;
   drawSky(ctx, w, R, Y(skyH(R, wt - bank)), v0 * sc);
   V.begin();
@@ -1063,7 +1080,10 @@ function drawFlussFrei(ctx, w, h){
   if (S.t === 0 && !S.running){ const r = Math.max(0.5 * f, 14); S.hits.push({ x:pB - r, y:by0 - r, w:2 * r, h:2 * r, act:"dragB" }); }
   drawSwimmerTop(ctx, pO, sy, f, 1, ph, m.v1 > 0.02);
   const kk = 70 / 1.5, cx = pO - 0.9 * f;
-  const uT = Math.max(Y(wt - bank), R.y + 90), uB = Math.min(Y(wb + bank), h - 100);
+  const sw = mode === "schwimmer", info = follow === null ? null : ["Kamera fährt mit " + (sw ? "dem Schwimmer" : "der Boje") + " mit.",
+    sw ? "Von dort aus gesehen bewegen sich die Boje mit " + fv(m.d2 * m.v2 - m.v) + " und das Ufer mit " + fv(-m.v) + "."
+       : "Von dort aus gesehen bewegen sich der Schwimmer mit " + fv(m.v - m.d2 * m.v2) + " (= v₁) und das Ufer mit " + fv(-m.d2 * m.v2) + "."];
+  const uT = Math.max(Y(wt - bank), R.y + 90), uB = Math.min(Y(wb + bank), h - 100, lowLimit(ctx, w, h, info && info.join(" ")) - 58);
   if (S.show.arrows) arrowPair(ctx, w, cx, Math.max(sy - 0.6 * f - 10, R.y + 80), m.v1, m.v, "Schwimmer gegenüber dem Wasser", kk);
   if (S.show.arrows){ const ay = Math.min(wbS, h - 100) - 30; arrow(ctx, cx, ay, cx + m.d2 * m.v2 * kk, ay, C.t2, 3); }
   bubble(ctx, "Schwimmer gegenüber dem Wasser: v₁ = " + fv(m.v1) + " ✎", cx, uT - 26, C.t1, "vP", "center", 13);
@@ -1073,12 +1093,7 @@ function drawFlussFrei(ctx, w, h){
   bubble(ctx, "Strömung: v₂ = " + fv(m.v2) + " ✎", cx, uB + 24, C.t2, "vT", "center", 13);
   const pB0 = X(m.xBo0), eB = pB0 < 60 ? "← " : pB0 > w - 60 ? "→ " : "";
   bubble(ctx, eB + "Boje startet bei " + fmt(m.xBo0, 0) + " m ✎", Math.max(60, Math.min(w - 60, pB0)), uB + 58, C.muted, "xBo", "center", 12);
-  if (follow !== null){
-    const sw = mode === "schwimmer";
-    followInfo(ctx, w, h, "Kamera fährt mit " + (sw ? "dem Schwimmer" : "der Boje") + " mit.",
-      sw ? ["Von dort aus gesehen bewegen sich die Boje mit " + fv(m.d2 * m.v2 - m.v) + " und das Ufer mit " + fv(-m.v) + "."]
-         : ["Von dort aus gesehen bewegen sich der Schwimmer mit " + fv(m.v - m.d2 * m.v2) + " (= v₁) und das Ufer mit " + fv(-m.d2 * m.v2) + "."]);
-  }
+  if (info) followInfo(ctx, w, h, info[0], [info[1]]);
   timeBadge(ctx, w, h, R);
 }
 /* Schwimmer von oben (Kraulen). Kopf vorn bei x, Körper ca. 1,9 m lang, Maßstab f (px pro m) */
@@ -1175,7 +1190,7 @@ function drawBandFrei(ctx, w, h){
   const REF = refSc(w, k.frei0.D, 1.2), F = REF;
   const fy = Math.round(R.y + R.h * 0.6);                 // Hallenboden
   const ceil = R.y + 6, winTop = ceil + 26, winBot = fy - Math.max(26, 0.6 * F);
-  const V = zoomView(ctx, w, h, cam, REF, fy), Y = V.Y, z = V.z, lo = V.off, W = V.xb - V.xa;
+  const V = zoomView(ctx, w, h, cam, REF, fy - 0.9 * REF), Y = V.Y, z = V.z, lo = V.off, W = V.xb - V.xa; // Zoom-Drehpunkt: Körpermitte der Person
   V.begin();
   // Decke und Rückwand
   // über der Halle (sichtbar beim Herauszoomen): Dach und Himmel
@@ -1716,7 +1731,7 @@ function applyKontext(){
   updateOut(); render();
 }
 const FREI_NOTE = {
-  strasseG:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Unter „Fahrbahn“ fahren sie getrennt aneinander vorbei oder auf derselben Fahrbahn ineinander. Mit dem Mausrad (oder + und −) zoomst du. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren.",
+  strasseG:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Unter „Fahrbahn“ fahren sie getrennt aneinander vorbei oder auf derselben Fahrbahn ineinander. Mit dem Mausrad (oder + und −) zoomst du bis auf 2 m heran; steht die Kamera an der Straße, zeigt das Bild dann den Treffpunkt, und die Fahrzeuge kommen von außerhalb ins Bild. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren.",
   strasse:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu, die Leitpfosten stehen alle 50 m. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren: Dann steht dieses Fahrzeug in der Bildmitte still und alles andere zieht vorbei.",
   fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Die Boje treibt mit der Strömung; ihren Startpunkt kannst du anklicken oder die Boje vor dem Start verschieben. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Mit dem Mausrad (oder + und −) zoomst du. Der Schwimmer ist maßstabsgetreu, die Laufzeit beträgt 60 s.",
   band:"Gehgeschwindigkeit v₁ der Person, Geschwindigkeit v₂ des Laufbands (gegenüber dem Boden), Bandlänge und Bandanfang stellst du direkt in der Szene ein: Wert anklicken. Die Person kannst du vor dem Start auch verschieben; die 0 m liegt immer an ihrem Startpunkt. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit der Person mit. Alles ist maßstabsgetreu, das Geländer ist 1 m hoch."
@@ -1884,7 +1899,7 @@ cScene.addEventListener("pointerdown", ev => {
 });
 function zoom(fac){
   if (!kontext().frei) return;
-  const F = vals(); F.D = Math.min(5000, Math.max(10, F.D * fac));
+  const F = vals(); F.D = Math.min(5000, Math.max(2, F.D * fac));
   S.t = Math.min(S.t, tEnd()); render();
 }
 cScene.addEventListener("wheel", ev => {
