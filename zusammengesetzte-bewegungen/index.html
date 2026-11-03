@@ -493,6 +493,144 @@ function drawPerson(ctx, x, y, phase, dir = 1, size = 1){
    ============================================================ */
 function sceneRect(w, h){ const top = window.matchMedia("(max-width:820px)").matches ? 10 : 66; return { x:0, y:top, w, h:h - top }; }
 
+/* --- Landschaft und Straße (Dekoration, scrollt mit der Straße; ferne Ebenen langsamer) --- */
+function drawLandscape(ctx, w, h, R, top, bot, off){
+  const dk = C.dark, hz = R.y + Math.max(30, (top - 20 - R.y) * 0.45);
+  // Himmel
+  const sky = ctx.createLinearGradient(0, R.y, 0, hz);
+  sky.addColorStop(0, dk ? "#0b1424" : "#8ccbf3"); sky.addColorStop(1, dk ? "#22344f" : "#e4f3fd");
+  ctx.fillStyle = sky; ctx.fillRect(0, R.y, w, hz - R.y + 2);
+  if (hz - R.y > 60){
+    const sx = w * 0.84, sy = R.y + (hz - R.y) * 0.38;
+    if (dk){
+      ctx.fillStyle = "rgba(255,255,255,.7)";
+      for (let i = 0; i < 40; i++){ const x = hash(i * 3.1) * w, y = R.y + hash(i * 7.7) * (hz - R.y) * 0.8; ctx.fillRect(x, y, 1.5, 1.5); }
+      ctx.fillStyle = "#e6ecf5"; ctx.beginPath(); ctx.arc(sx, sy, 14, 0, 7); ctx.fill();
+      ctx.fillStyle = "#0e1829"; ctx.beginPath(); ctx.arc(sx + 6, sy - 4, 12, 0, 7); ctx.fill();
+    } else {
+      const g = ctx.createRadialGradient(sx, sy, 4, sx, sy, 60);
+      g.addColorStop(0, "rgba(255,244,190,.95)"); g.addColorStop(0.3, "rgba(255,236,150,.55)"); g.addColorStop(1, "rgba(255,236,150,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, 60, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff6c8"; ctx.beginPath(); ctx.arc(sx, sy, 16, 0, 7); ctx.fill();
+    }
+    // Wolken (ganz langsam)
+    ctx.fillStyle = dk ? "rgba(170,185,210,.12)" : "rgba(255,255,255,.92)";
+    const co = off * 0.05, cw = 380;
+    for (let i = Math.floor(co / cw) - 1; i < (co + w) / cw + 1; i++){
+      if (hash(i * 1.7) < 0.35) continue;
+      const cx = i * cw - co + hash(i) * 200, cy = R.y + 18 + hash(i * 2.3) * (hz - R.y) * 0.45, sz = 0.7 + hash(i * 5.1) * 0.7;
+      for (const [dx, dy, rx, ry] of [[0, 0, 44, 12], [20, -9, 24, 13], [-18, -5, 18, 10]]){ ctx.beginPath(); ctx.ellipse(cx + dx * sz, cy + dy * sz, rx * sz, ry * sz, 0, 0, 7); ctx.fill(); }
+    }
+  }
+  // Hügel: fern und nah (Parallaxe)
+  const hill = (o, base, a1, a2, col) => {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, hz + 30);
+    for (let x = 0; x <= w + 10; x += 10){ const u = x + o; ctx.lineTo(x, base - a1 * (1 + Math.sin(u / 170)) - a2 * (1 + Math.sin(u / 61 + 1.3))); }
+    ctx.lineTo(w, hz + 30); ctx.closePath(); ctx.fill();
+  };
+  hill(off * 0.08, hz, 14, 6, dk ? "#1c2f3a" : "#a9cdb8");
+  hill(off * 0.18, hz + 2, 9, 5, dk ? "#1d3a2b" : "#93c287");
+  // Wiese oben bis zur Straße
+  const mg = ctx.createLinearGradient(0, hz, 0, top);
+  mg.addColorStop(0, dk ? "#1b3a26" : "#8fc56c"); mg.addColorStop(1, dk ? "#1e4228" : "#a3d27b");
+  ctx.fillStyle = mg; ctx.fillRect(0, hz, w, top - hz);
+  // Felder in der Ferne
+  const fo = off * 0.32, fwid = 150;
+  for (let i = Math.floor(fo / fwid) - 1; i < (fo + w) / fwid + 1; i++){
+    const r = hash(i * 9.3); if (r < 0.45) continue;
+    const x = i * fwid - fo, y = hz + 4, fh = Math.min(16, (top - hz) * 0.22);
+    ctx.fillStyle = r > 0.75 ? (dk ? "#4a4424" : "#e8d27a") : (dk ? "#26462c" : "#b5da8a");
+    ctx.beginPath(); ctx.moveTo(x, y + fh); ctx.lineTo(x + 18, y); ctx.lineTo(x + fwid * 0.9, y); ctx.lineTo(x + fwid * 0.9 + 18, y + fh); ctx.closePath(); ctx.fill();
+  }
+  // Baumreihe am Horizont
+  const to = off * 0.45, tc = 34;
+  for (let i = Math.floor(to / tc) - 1; i < (to + w) / tc + 1; i++){
+    const r = hash(i * 4.7); if (r < 0.3) continue;
+    const x = i * tc - to + hash(i * 1.3) * 16, sz = 0.65 + hash(i * 8.1) * 0.6, y = hz + 6;
+    tree(ctx, x, y, 26 * sz, r > 0.78, dk);
+  }
+  // Büsche in der mittleren Entfernung (oben)
+  const mo = off * 0.7, mc = 170;
+  for (let i = Math.floor(mo / mc) - 1; i < (mo + w) / mc + 1; i++){
+    const r = hash(i * 3.9 + 1); if (r < 0.45) continue;
+    const x = i * mc - mo + hash(i * 4.4) * 90, y = hz + 30 + hash(i * 6.6) * Math.max(0, top - hz - 70);
+    if (r > 0.82) tree(ctx, x, y, 34, hash(i * 2.2) > 0.6, dk); else bush(ctx, x, y, 8 + 6 * hash(i * 5.2), dk);
+  }
+  // Wiese unten
+  const lg = ctx.createLinearGradient(0, bot, 0, h);
+  lg.addColorStop(0, dk ? "#1e4228" : "#9fd077"); lg.addColorStop(1, dk ? "#173520" : "#86bf62");
+  ctx.fillStyle = lg; ctx.fillRect(0, bot, w, h - bot);
+  // Büsche und Bäume nah unten (scrollen mit der Straße)
+  const bc = 130;
+  for (let i = Math.floor(off / bc) - 1; i < (off + w) / bc + 1; i++){
+    const r = hash(i * 6.1); if (r < 0.3) continue;
+    const x = i * bc - off + hash(i * 2.9) * 120, y = bot + 120 + hash(i * 3.3) * Math.max(0, h - bot - 190);
+    if (y > h - 40) continue;
+    if (r > 0.72) tree(ctx, x, y, 40 + 16 * hash(i * 1.1), hash(i * 7.1) > 0.5, dk); else bush(ctx, x, y, 12 + 10 * hash(i * 5.5), dk);
+  }
+  // Weidezaun unterhalb der Straße
+  const fy = bot + 34, fc = 34;
+  ctx.strokeStyle = dk ? "#5a4632" : "#a07a50"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, fy - 8); ctx.lineTo(w, fy - 8); ctx.moveTo(0, fy - 2); ctx.lineTo(w, fy - 2); ctx.stroke();
+  ctx.fillStyle = dk ? "#4a3a2a" : "#8a6440";
+  for (let i = Math.floor(off / fc) - 1; i < (off + w) / fc + 1; i++) ctx.fillRect(i * fc - off - 1.5, fy - 13, 3, 15);
+  // Grasbüschel und Blumen
+  const gc = 26;
+  const band = (y1, y2, seed) => {
+    if (y2 - y1 < 6) return;
+    for (let i = Math.floor(off / gc) - 1; i < (off + w) / gc + 1; i++){
+      for (let j = 0; j < 3; j++){
+        const q = hash(i * 13.7 + j * 3.1 + seed); if (q < 0.25) continue;
+        const x = i * gc - off + hash(i * 3.7 + j + seed) * gc, y = y1 + hash(i * 1.9 + j * 5.3 + seed) * (y2 - y1);
+        if (q > 0.93){ ctx.fillStyle = ["#ffffff", "#ffd84a", "#f28bb5", "#c9a2f0"][Math.floor(hash(i + j * 9 + seed) * 4)]; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 7); ctx.fill(); }
+        else { ctx.strokeStyle = dk ? "rgba(120,180,110,.35)" : "rgba(60,120,40,.45)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x - 3, y - 4); ctx.lineTo(x, y + 1); ctx.lineTo(x + 3, y - 5); ctx.moveTo(x, y + 1); ctx.lineTo(x + 0.5, y - 6); ctx.stroke(); }
+      }
+    }
+  };
+  band(hz + 22, top - 22, 0.5); band(bot + 40, h - 30, 7.5);
+}
+function tree(ctx, x, y, s, fir, dk){
+  ctx.fillStyle = dk ? "#3a2c20" : "#7a5634"; ctx.fillRect(x - s * 0.05, y - s * 0.35, s * 0.1, s * 0.35);
+  if (fir){
+    ctx.fillStyle = dk ? "#15301e" : "#3f8a4a";
+    ctx.beginPath(); ctx.moveTo(x, y - s * 1.15); ctx.lineTo(x + s * 0.32, y - s * 0.25); ctx.lineTo(x - s * 0.32, y - s * 0.25); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.fillStyle = dk ? "#1a3a22" : "#4f9a46"; ctx.beginPath(); ctx.arc(x, y - s * 0.62, s * 0.34, 0, 7); ctx.fill();
+    ctx.fillStyle = dk ? "#21472a" : "#68b257"; ctx.beginPath(); ctx.arc(x - s * 0.1, y - s * 0.7, s * 0.2, 0, 7); ctx.fill();
+  }
+}
+function bush(ctx, x, y, r, dk){
+  ctx.fillStyle = "rgba(0,0,0,.12)"; ctx.beginPath(); ctx.ellipse(x, y + 2, r * 1.3, r * 0.3, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = dk ? "#183a22" : "#4c9440";
+  for (const [dx, dy, rr] of [[-0.6, -0.4, 0.7], [0.5, -0.45, 0.75], [0, -0.85, 0.8]]){ ctx.beginPath(); ctx.arc(x + r * dx, y + r * dy, r * rr, 0, 7); ctx.fill(); }
+  ctx.fillStyle = dk ? "#21482b" : "#62ab52"; ctx.beginPath(); ctx.arc(x - r * 0.15, y - r * 1.0, r * 0.4, 0, 7); ctx.fill();
+}
+function drawRoad(ctx, w, top, rh, off){
+  const dk = C.dark;
+  // Bankett (Schotterstreifen)
+  ctx.fillStyle = dk ? "#4a463e" : "#b9ad93"; ctx.fillRect(0, top - 7, w, 7); ctx.fillRect(0, top + rh, w, 7);
+  const ag = ctx.createLinearGradient(0, top, 0, top + rh);
+  ag.addColorStop(0, dk ? "#2c3138" : "#666c75"); ag.addColorStop(0.5, dk ? "#30353d" : "#6e747d"); ag.addColorStop(1, dk ? "#2a2e35" : "#62686f");
+  ctx.fillStyle = ag; ctx.fillRect(0, top, w, rh);
+  // Fahrspuren etwas dunkler (Reifenspuren)
+  ctx.fillStyle = "rgba(0,0,0,.07)";
+  for (const f of [0.18, 0.36, 0.64, 0.82]) ctx.fillRect(0, top + rh * f - 4, w, 8);
+  // Körnung des Asphalts
+  const c = 9;
+  for (let i = Math.floor(off / c) - 1; i < (off + w) / c + 1; i++){
+    for (let j = 0; j < rh / c; j++){
+      const q = hash(i * 17.3 + j * 3.7); if (q < 0.55) continue;
+      ctx.fillStyle = q > 0.8 ? (dk ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.10)") : "rgba(0,0,0,.10)";
+      ctx.fillRect(i * c - off + hash(i + j * 7) * c, top + j * c + hash(i * 2 + j) * c, 1.6, 1.6);
+    }
+  }
+  // Schotterkörner
+  ctx.fillStyle = dk ? "rgba(0,0,0,.25)" : "rgba(90,80,60,.35)";
+  for (let i = Math.floor(off / 7) - 1; i < (off + w) / 7 + 1; i++){
+    for (const y of [top - 5, top + rh + 2]) if (hash(i * 5.7 + y) > 0.5) ctx.fillRect(i * 7 - off + hash(i) * 6, y + hash(i * 3 + y) * 3, 1.5, 1.5);
+  }
+}
+
 /* --- Autos (gleiche Richtung): Pkw startet bei 0 m, Lkw-Start, Geschwindigkeiten und Strecke in der Szene einstellbar --- */
 function drawStrasseFrei(ctx, w, h){
   const m = kin(), R = sceneRect(w, h);
@@ -510,8 +648,8 @@ function drawStrasseFrei(ctx, w, h){
   const top = Math.round(R.y + 100 + (R.h - 100 - 150 - rh) * 0.5), bot = top + rh;
   const yA = top + 4 + lane * 0.86, yT = top + 4 + lane + lane * 0.9;
 
-  ctx.fillStyle = C.grass; ctx.fillRect(0, R.y, w, h - R.y);
-  ctx.fillStyle = C.road; ctx.fillRect(0, top, w, rh);
+  drawLandscape(ctx, w, h, R, top, bot, v0 * sc);
+  drawRoad(ctx, w, top, rh, v0 * sc);
   line(ctx, 0, top + 4, w, top + 4, C.mark, 2); line(ctx, 0, bot - 4, w, bot - 4, C.mark, 2);
   ctx.save(); ctx.strokeStyle = C.mark; ctx.lineWidth = 2.5; ctx.setLineDash([26, 22]);
   ctx.lineDashOffset = ((v0 * sc - padL) % 48 + 48) % 48;
@@ -600,8 +738,8 @@ function draw1d(ctx, w, h){
 
   if (k.szene === "strasse"){
     const rh = Math.min(150, R.h * 0.46), top = cy - rh / 2 + 18;
-    ctx.fillStyle = C.grass; ctx.fillRect(0, R.y, w, h - R.y);
-    ctx.fillStyle = C.road; ctx.fillRect(0, top, w, rh);
+    drawLandscape(ctx, w, h, R, top, top + rh, 0);
+    drawRoad(ctx, w, top, rh, 0);
     line(ctx, 0, top + 4, w, top + 4, C.mark, 2); line(ctx, 0, top + rh - 4, w, top + rh - 4, C.mark, 2);
     line(ctx, 0, top + rh / 2, w, top + rh / 2, C.mark, 2.5, [26, 22]);
     // Leitpfosten (ruhen gegenüber der Straße)
@@ -834,7 +972,7 @@ function timeBadge(ctx, w, h, R){
 /* ============================================================
    Oberfläche
    ============================================================ */
-S.show = { arrows:true, trail:true, help:true, ghost:false };
+S.show = { arrows:false, trail:false, help:false, ghost:false };
 
 function buildBereiche(){
   const box = $("bereiche"); box.innerHTML = "";
