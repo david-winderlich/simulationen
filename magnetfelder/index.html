@@ -1397,11 +1397,11 @@ window.__v3init = function(){
 
     if (c.type === 'leiter') {
       var G = MF.GL;
-      root.add(bar(W(c, -G.half, 0, 0), W(c, G.half, 0, 0), 0.075, new THREE.MeshStandardMaterial({ color:0x8b919b, metalness:0.35, roughness:0.45 })));
+      var cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2 * G.half * S, 32), new THREE.MeshStandardMaterial({ color:0x8b919b, metalness:0.35, roughness:0.45 }));
+      cyl.quaternion.setFromUnitVectors(UP, W(c, 1, 0, 0).normalize()); root.add(cyl);
       [-1, 1].forEach(function(d){
-        var tm = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), mTerm); tm.position.copy(W(c, d * G.term, 0, 0)); root.add(tm);
         var s = vis.pol == null ? '?' : (vis.pol * d < 0 ? '−' : '+');
-        var b = signBadge(s, vis.marks.pol === 'bad'); b.position.copy(W(c, d * G.term, -36, 0)); root.add(b);
+        var b = signBadge(s, vis.marks.pol === 'bad'); b.position.copy(W(c, d * (G.half + 36), 0, 0)); root.add(b);
       });
       [-150, -75, 0, 75, 150].forEach(function(uc){
         [48, 88].forEach(function(R){
@@ -1437,8 +1437,8 @@ window.__v3init = function(){
         var bd = badge(k, fillc, k === '?' ? css('--unk', '#8a94a6') : '#ffffff', 0.5, k === '?');
         bd.position.copy(W(c, d * (GS.L / 2 + 44), 0, 0)); root.add(bd);
       });
-      // Feldlinien (berechnet, wie in 2D) in vier Halbebenen um die Achse
-      var F = MF.coilField(), AZ = [0.25, 0.75, 1.25, 1.75].map(function(x){ return x * Math.PI; });
+      // Feldlinien (berechnet, wie in 2D) in acht Halbebenen um die Achse (auch 12, 3, 6 und 9 Uhr)
+      var F = MF.coilField(), AZ = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75].map(function(x){ return x * Math.PI; });
       AZ.forEach(function(al){
         var ca = Math.cos(al), sa = Math.sin(al);
         F.clipped.forEach(function(cl){
@@ -1624,18 +1624,26 @@ function fieldLines(L, R, starts, opt){
   }
   function dir(u, p){ var b = B(u, p), n = Math.hypot(b[0], b[1]) || 1; return [b[0] / n, b[1] / n]; }
   var lim = opt.limit || 900;
-  return starts.map(function(p0){
-    var u = 0, p = p0, pts = [[u, p]], out = false;
+  /* Start an der Stirnfläche (u = L/2, Abstand p0 von der Achse): rückwärts nach innen bis zur Mitte,
+     vorwärts außen herum bis zur Mittelebene. So läuft jede Linie durch die Öffnung der Spule. */
+  function trace(u, p, sgn, stop){
+    var pts = [[u, p]];
     for (var n = 0; n < 4000; n++) {
-      var h = Math.abs(u) < L / 2 + 20 && p < R + 20 ? 2 : 4;
+      var h = (Math.abs(u) < L / 2 + 20 && p < R + 20 ? 1.5 : 4) * sgn;
       var k1 = dir(u, p), k2 = dir(u + h/2*k1[0], p + h/2*k1[1]), k3 = dir(u + h/2*k2[0], p + h/2*k2[1]), k4 = dir(u + h*k3[0], p + h*k3[1]);
       var nu = u + h/6*(k1[0] + 2*k2[0] + 2*k3[0] + k4[0]), np = p + h/6*(k1[1] + 2*k2[1] + 2*k3[1] + k4[1]);
-      if (out && nu <= 0) { pts.push([0, p + (np - p) * (u / (u - nu))]); return { pts:pts, closed:true }; }
+      if (nu <= 0) { pts.push([0, p + (np - p) * (u / (u - nu))]); return { pts:pts, done:true }; }
       u = nu; p = np; pts.push([u, p]);
-      if (u > L / 2 || p > R + 3) out = true;
-      if (u > lim || p > lim) return { pts:pts, closed:false };
+      if (stop(u, p)) return { pts:pts, done:false };
     }
-    return { pts:pts, closed:false };
+    return { pts:pts, done:false };
+  }
+  return starts.map(function(p0){
+    var inn = trace(L / 2, p0, -1, function(){ return false; });
+    var minGap = 1e9;
+    var out = trace(L / 2, p0, 1, function(u, p){ if (Math.abs(u) < L / 2) minGap = Math.min(minGap, p - R); return u > lim || p > lim; });
+    var pts = inn.pts.slice().reverse().concat(out.pts.slice(1));
+    return { pts:pts, closed:out.done, gap:minGap };
   });
 }
 
@@ -1645,10 +1653,14 @@ var FL = null;
 function coilField(){
   if (FL) return FL;
   var L = GS.L, R = GS.R, BU = L / 2 + 125, BV = R + 100;
-  var halves = fieldLines(L, R, [0.97, 0.9, 0.8, 0.62, 0.38].map(function(x){ return x * R; }), { limit:900 });
+  var halves = fieldLines(L, R, [0.88, 0.74, 0.45, 0.22].map(function(x){ return x * R; }), { limit:1400 });
+  /* Darstellung: Der Abstand von der Achse wird außerhalb weich gestaucht (Steigung 1 bis 0,8·R, dann 0,2),
+     damit die Linien im Bild bleiben. Reihenfolge und Form bleiben erhalten, alle Linien laufen durch die Öffnungen. */
+  var R0 = 0.75 * R, KQ = 0.15, SG = 25;
+  function squeeze(p){ var a = Math.abs(p); if (a <= R0) return p; var d = a - R0; return (p < 0 ? -1 : 1) * (R0 + KQ * d + (1 - KQ) * SG * (1 - Math.exp(-d / SG))); }
   var lines = [];
   halves.forEach(function(h){
-    var Rh = h.pts, Lh = Rh.slice().reverse().map(function(p){ return [-p[0], p[1]]; });
+    var Rh = h.pts.map(function(q){ return [q[0], squeeze(q[1])]; }), Lh = Rh.slice().reverse().map(function(p){ return [-p[0], p[1]]; });
     var full = h.closed ? Rh.concat(Lh.slice(1)) : Lh.concat(Rh.slice(1));
     [1, -1].forEach(function(sv){ lines.push({ sv:sv, pts:full.map(function(p){ return [p[0], sv * p[1]]; }) }); });
   });
@@ -1752,9 +1764,12 @@ function drawLeiter(c, vis){
     front += '<path d="' + ring(uc, 0, Math.PI) + '"' + sty(flc, 3) + '/>' + ringArrows(uc);
     hitb += hitPath(ring(uc, 0, TAU), 16);
   });
-  var a = P(c, -GL.half, 0, 0), b = P(c, GL.half, 0, 0);
-  var bar = '<path d="M' + a[0] + ' ' + a[1] + ' L' + b[0] + ' ' + b[1] + '"' + sty('var(--wire-bo)', 17) + '/>' +
-            '<path d="M' + a[0] + ' ' + a[1] + ' L' + b[0] + ' ' + b[1] + '"' + sty('var(--wire-b)', 12) + '/>';
+  // Leiter als Röhre: Mantel, am hinteren Ende (+u) die Stirnfläche als Ellipse, vorn nur der Umriss
+  var H = GL.half, rt = 10, ex = 4.5;
+  function el(uc, t0, t1){ var pts = []; for (var i = 0; i <= 24; i++) { var t = t0 + (t1 - t0) * i / 24; pts.push(P(c, uc + ex * Math.cos(t), rt * Math.sin(t), 0)); } return pts; }
+  var body = [P(c, -H, rt, 0), P(c, H, rt, 0)].concat(el(H, Math.PI / 2, -Math.PI / 2)).concat([P(c, -H, -rt, 0)]).concat(el(-H, -Math.PI / 2, -3 * Math.PI / 2));
+  var bar = '<path d="' + pathOf(body) + ' Z" style="fill:var(--wire-b);stroke:var(--wire-bo);stroke-width:2.5;stroke-linejoin:round"/>' +
+            '<path d="' + pathOf(el(H, 0, TAU)) + ' Z" style="fill:var(--wire-f);stroke:var(--wire-bo);stroke-width:2.5"/>';
   out.push(hot('feld', back, 'Feldrichtung umkehren', vis.hot.feld));
   out.push(bar);
   out.push('<g id="eLayer"></g>');
@@ -1762,9 +1777,9 @@ function drawLeiter(c, vis){
   // Anschlüsse
   var tp = '';
   [-1, 1].forEach(function(d){
-    var t = P(c, d * GL.term, 0, 0), l = P(c, d * GL.term, -30, 0);
+    var l = P(c, d * (GL.half + 30), 0, 0);
     var s = vis.pol == null ? '?' : ((vis.pol * d < 0) ? '−' : '+');   // pol = +1: Elektronen fließen in +u-Richtung, also Minus am −u-Ende
-    tp += terminal(t[0], t[1]) + sign(l[0], l[1], s, vis.marks.pol === 'bad' ? 'var(--bad)' : null) + hitCircle(l[0], l[1], 20) + hitCircle(t[0], t[1], 16);
+    tp += sign(l[0], l[1], s, vis.marks.pol === 'bad' ? 'var(--bad)' : null) + hitCircle(l[0], l[1], 22);
   });
   out.push(hot('pol', tp, 'Plus und Minus tauschen', vis.hot.pol));
   finishSvg(out.join(''));
@@ -2027,10 +2042,10 @@ function renderLegend(){
   function mini(inner){ return '<svg viewBox="0 0 30 30" aria-hidden="true">' + inner + '</svg>'; }
   var rows = [
     [mini('<path d="M2 15 L28 15"' + sty('var(--fl)', 2.6) + '/>' + head(19, 15, 1, 0, 'var(--fl)', 6)), 'Magnetfeldlinie mit Richtung'],
-    [mini('<circle cx="15" cy="15" r="7" style="fill:var(--term);stroke:var(--term-s);stroke-width:2.5"/>'), 'Anschluss (+ oder −)'],
     [mini('<circle cx="15" cy="15" r="5" style="fill:var(--el)"/>'), 'Elektron (fließt von − nach +)']
   ];
   if (st.obj === 'spule') rows.push(
+    [mini('<circle cx="15" cy="15" r="7" style="fill:var(--term);stroke:var(--term-s);stroke-width:2.5"/>'), 'Anschluss (+ oder −)'],
     [mini('<path d="M8 3 L22 27"' + sty('var(--wire-fo)', 8) + '/><path d="M8 3 L22 27"' + sty('var(--wire-f)', 5) + '/>'), 'Windung vorn (hell)'],
     [mini('<path d="M8 27 L22 3"' + sty('var(--wire-bo)', 8) + '/><path d="M8 27 L22 3"' + sty('var(--wire-b)', 5) + '/>'), 'Windung hinten (dunkel)'],
     [mini('<circle cx="15" cy="15" r="11" style="fill:var(--pN)"/>' + text(15, 16, 'N', '#fff', 13)), 'Nordpol'],
