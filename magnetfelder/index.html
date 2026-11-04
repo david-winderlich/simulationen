@@ -1408,8 +1408,8 @@ window.__v3init = function(){
 
     if (c.type === 'leiter') {
       var G = MF.GL;
-      var cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2 * G.half * S, 32), new THREE.MeshStandardMaterial({ color:0x8b919b, metalness:0.35, roughness:0.45 }));
-      cyl.quaternion.setFromUnitVectors(UP, W(c, 1, 0, 0).normalize()); root.add(cyl);
+      var cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2 * G.half * S, 32), new THREE.MeshStandardMaterial({ color:0x8b919b, metalness:0.35, roughness:0.45, transparent:true, opacity:0.32, depthWrite:false }));
+      cyl.renderOrder = 1; cyl.quaternion.setFromUnitVectors(UP, W(c, 1, 0, 0).normalize()); root.add(cyl);
       [-1, 1].forEach(function(d){
         var s = vis.pol == null ? '?' : (vis.pol * d < 0 ? '−' : '+');
         var b = signModel(s, vis.marks.pol === 'bad'); b.position.copy(W(c, d * (G.half + 36), 0, 0)); root.add(b);
@@ -1809,10 +1809,9 @@ function drawSpule(c, vis){
   out.push(hot('feld', axisL, 'Feldrichtung umkehren', vis.hot.feld));
   out.push(wireB);
   out.push('<g id="eBack"></g>');
-  out.push(hot('feld', inner, 'Feldrichtung umkehren', vis.hot.feld));
+  out.push(hot('feld', inner + outer + arrows + hits, 'Feldrichtung umkehren', vis.hot.feld));   // alle Feldlinien hinter den vorderen Drähten
   out.push(wireF);
   out.push('<g id="eFront"></g>');
-  out.push(hot('feld', outer + arrows + hits, 'Feldrichtung umkehren', vis.hot.feld));
   // Pole
   var pb = '';
   [-1, 1].forEach(function(d){
