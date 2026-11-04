@@ -286,12 +286,14 @@ const BEREICHE = [
         frei0:{ vP:1.0, vT:0.5, B:30 },
         v1:{ name:"Strömung (nach rechts)", min:0, max:1.5, step:0.05, def:0.5 },
         v2:{ name:"Schwimmer quer zum Fluss", min:0.2, max:2, step:0.05, def:1 } },
-      { id:"kran", name:"Lastenkran", szene:"kran", Ly:16, tMax:200,
-        intro:"Die Laufkatze eines Krans fährt mit v₁ nach rechts, gleichzeitig wird die Last mit v₂ abgesenkt. Die Last bewegt sich schräg nach unten.",
+      { id:"kran", name:"Lastenkran", szene:"kran", frei:"kran", Ly:16, tMax:600,
+        intro:"Die Laufkatze eines Turmdrehkrans fährt mit v₂ gegenüber dem Boden nach rechts, gleichzeitig wird die Last mit v₁ gegenüber der Laufkatze abgesenkt. Gegenüber dem Boden bewegt sich die Last schräg nach unten mit v = √(v₁² + v₂²).",
+        frei0:{ vP:0.4, vT:0.6, H:20 },
         v1:{ name:"Laufkatze (nach rechts)", min:0.1, max:1.5, step:0.05, def:0.6 },
         v2:{ name:"Absenken der Last", min:0.1, max:1, step:0.05, def:0.4 } },
-      { id:"fallschirm", name:"Luftlandung bei Wind", szene:"fallschirm", Ly:120, tMax:200,
-        intro:"Ein Fallschirmspringer sinkt gleichmäßig mit v₂ nach unten, der Wind treibt ihn mit v₁ nach rechts. Er landet ein Stück versetzt.",
+      { id:"fallschirm", name:"Luftlandung bei Wind", szene:"fallschirm", frei:"schirm", Ly:120, tMax:600,
+        intro:"Ein Fallschirmspringer sinkt am offenen Schirm gleichmäßig mit v₁ gegenüber der Luft nach unten, der Wind trägt die Luft mit v₂ gegenüber dem Boden nach rechts. Gegenüber dem Boden sinkt er schräg mit v = √(v₁² + v₂²) und landet versetzt.",
+        frei0:{ vP:5, vT:3, H:120 },
         v1:{ name:"Wind (nach rechts)", min:0, max:8, step:0.1, def:3 },
         v2:{ name:"Sinken (nach unten)", min:2, max:7, step:0.1, def:5 } }
     ] }
@@ -329,11 +331,13 @@ function kin(){
     return { art:"1d", frei:"band", v1, v2, d1:1, d2, vB, v:held ? 0 : on ? vB : v1, x0:0, x:st.x + F.xB, xB:F.xB, on, on0:F.xB <= 0 && -F.xB < F.Lb,
       s:st.x + F.xB, s1:v1 * t, s2:st.x + F.xB - v1 * t, t, D:F.D, Lb:F.Lb };
   }
-  if (k.frei === "quer"){ // Schwimmer quer: v₁ gegenüber dem Wasser (quer, y), Strömung v₂ gegenüber dem Ufer (längs, x); am anderen Ufer bleibt er stehen
-    const F = vals(), v1 = F.vP, v2 = F.vT, B = F.B, tA = v1 > 1e-9 ? B / v1 : Infinity, arrived = t >= tA - 1e-9, te = Math.min(t, tA);
-    const x = v2 * te, y = v1 * te;
-    return { art:"2d", frei:"quer", v1, v2, B, tA, arrived, x, y, vx:arrived ? 0 : v2, vy:arrived ? 0 : v1, v:arrived ? 0 : Math.hypot(v1, v2),
-      s1:y, s2:x, s:Math.hypot(x, y), xBo:v2 * t, t, D:F.D };
+  if (k.frei === "quer" || k.frei === "kran" || k.frei === "schirm"){
+    // v₁: Körper gegenüber dem Träger (Schwimmer quer nach oben, Last und Springer nach unten), v₂: Träger gegenüber dem Boden (nach rechts)
+    const F = vals(), v1 = F.vP, v2 = F.vT, up = k.frei === "quer", L = up ? F.B : F.H;
+    const tA = v1 > 1e-9 ? L / v1 : Infinity, arrived = t >= tA - 1e-9, te = Math.min(t, tA);
+    const x = v2 * te, y = up ? v1 * te : L - v1 * te, xC = v2 * (k.frei === "kran" ? te : t); // Laufkatze hält beim Absetzen an
+    return { art:"2d", frei:k.frei, v1, v2, B:F.B, H:F.H, L, up, tA, arrived, x, y, vx:arrived ? 0 : v2, vy:arrived ? 0 : (up ? v1 : -v1), v:arrived ? 0 : Math.hypot(v1, v2),
+      s1:v1 * te, s2:x, s:Math.hypot(x, v1 * te), xBo:xC, xC, vC:k.frei === "kran" && arrived ? 0 : v2, t, D:F.D };
   }
   if (k.frei){ // Körper und Träger (Wasser, Band) gegenüber dem Boden vorgegeben; v₁ = Körper gegenüber dem Träger
     const F = vals(), d2 = b.d[1], v1 = F.vP, v2 = F.vT, v = v1 + d2 * v2; // Schwimmer: v₁ gegenüber dem Wasser, Strömung v₂ gegenüber dem Ufer
@@ -382,7 +386,7 @@ function startX1d(){
 function tEnd(){ const k = kontext(), T = k.frei ? vals().T : null; return T ? T : tAuto(); }
 function tAuto(){
   const k = kontext(), m = kin();
-  if (m.frei === "quer") return isFinite(m.tA) ? Math.min(Math.max(m.tA, 1), 600) : 60; // bis zum anderen Ufer
+  if (m.art === "2d" && m.frei) return isFinite(m.tA) ? Math.min(Math.max(m.tA, 1), 600) : 60; // bis zum anderen Ufer bzw. zum Boden
   const lim = (x0, v, lo, hi) => v > 1e-9 ? (hi - x0) / v : v < -1e-9 ? (lo - x0) / v : Infinity;
   let te = k.tMax;
   if (m.frei === "strasse" && m.gegen){ // aufeinander zu: bis kurz nach dem Crash oder bis sie aneinander vorbei sind
@@ -1538,21 +1542,76 @@ function subLab(ctx, parts, x, y, col, size = 12, weight = 600, align = "left"){
   ctx.font = weight + " " + size + "px " + getComputedStyle(document.body).fontFamily; ctx.fillText(c, x0 + wa + wb, y);
   ctx.restore();
 }
-function drawQuer(ctx, w, h){
-  const m = kin(), R = sceneRect(w, h), dk = C.dark, F = vals(), B = m.B, bankW = 2.2;
-  const padL = 64, padR = 34, padT = 64, padB = 150;
-  // Ausschnitt: ganzer Weg bis zum anderen Ufer passt ins Bild (Zoom 1); beim Ranzoomen bleibt der Schwimmer in der Bildmitte
-  const drift = isFinite(m.tA) ? m.v2 * m.tA : m.v2 * tEnd(), mx = Math.max(3, 0.08 * (drift + B));
-  const xa0 = Math.min(0, m.xBo) - mx, xb0 = Math.max(drift, 0) + mx;
-  const ys = B + 2 * bankW + 4, Hs = R.h - padT - padB, Ws = w - padL - padR;
-  const scFit = Math.min(Hs / ys, Ws / (xb0 - xa0)), Dfit = Ws / scFit; S.qFit = Dfit;
-  const zoomed = F.D && F.D < Dfit * 0.999, D = zoomed ? F.D : Dfit, sc = Ws / D, f = sc;
-  const xc = zoomed ? m.x : xa0 + D / 2 - (D - (xb0 - xa0)) * 0.25, yc = zoomed ? m.y + 1 : B / 2;
-  const v0 = xc - D / 2, Ysc = R.y + padT + Hs / 2;
-  const X = xw => padL + (xw - v0) * sc, Y = yw => Ysc - (yw - yc) * sc;
-  const wx = px => v0 + (px - padL) / sc, wy = py => yc - (py - Ysc) / sc;
-  const xL = wx(0), xR = wx(w), yT = wy(R.y), yB = wy(h);
+/* --- Senkrecht zueinander: gemeinsame Kamera, Achsen, Teilwege. Ursprung unten links (bzw. Start oben links), y nach oben --- */
+function cam2d(w, h, R, o){
+  const F = vals(), padL = 64, padR = 34, top = R.y + 64, bot = h - 150, Ws = w - padL - padR, Hs = bot - top;
+  const scFit = Math.min(Hs / (o.yb - o.ya), Ws / (o.xb - o.xa)), Dfit = Ws / scFit; S.qFit = Dfit;
+  const zoomed = F.D && F.D < Dfit * 0.999, sc = zoomed ? Ws / F.D : scFit;
+  // Startpunkt bleibt beim Zoomen an seinem Platz: links, unten (Schwimmer) bzw. oben (Kran, Springer)
+  let ox = padL + Math.min((o.sx - o.xa) * sc, 50) - o.sx * sc;
+  let oy = o.anchor === "top" ? top + Math.min((o.yb - o.sy) * sc, 50) + o.sy * sc : bot - Math.min((o.sy - o.ya) * sc, 40) + o.sy * sc;
+  if (o.anchor === "top") oy = Math.max(oy, bot + o.ya * sc); // Platz übrig: Boden bleibt unten im Bild
+  const fo = o.follow;
+  if (fo){ // mitfahrende Kamera: Körper waagerecht in der Bildmitte, senkrecht im Bild halten
+    if (fo.x !== undefined) ox = padL + Ws / 2 - fo.x * sc;
+    if (fo.y !== undefined) oy = top + 0.5 * Hs + fo.y * sc;
+  }
+  const X = x => ox + x * sc, Y = y => oy - y * sc, wx = px => (px - ox) / sc, wy = py => (oy - py) / sc;
   S.frame = { sc };
+  return { sc, X, Y, wx, wy, padL, padR, top, bot, Ws, Hs, D:Ws / sc, v0:wx(padL), xL:wx(0), xR:wx(w), yT:wy(R.y), yB:wy(h) };
+}
+function axes2d(ctx, w, h, R, cam){
+  const { X, Y, wy, sc, padL } = cam;
+  drawRuler(ctx, w, h, { D:cam.D, sc, v0:cam.v0, padL, X, minLab:padL + 22 });
+  const ax = 30, yTop = R.y + 50, yBot = h - 128;
+  line(ctx, ax, yTop, ax, yBot, C.muted, 1);
+  const step = niceStep(Math.max((yBot - yTop) / sc / 8, 36 / sc)), dg = step < 0.1 ? 2 : step < 1 ? 1 : 0;
+  for (let yw = Math.ceil(wy(yBot) / step) * step; Y(yw) >= yTop - 1e-6; yw += step){
+    const yy = Y(yw); line(ctx, ax - 4, yy, ax + 3, yy, C.muted, 1);
+    text(ctx, fmt(yw, dg), ax + 6, yy, C.muted, 11, "left", "middle", 500, true);
+  }
+  text(ctx, "y in m", ax - 6, yTop - 12, C.fg, 11, "left", "middle", 600, true);
+  text(ctx, "x in m", padL - 4, h - 28, C.fg, 11, "right", "middle", 600, true);
+}
+/* Start, Teilwege, Gesamtweg und Pfeile; rel: Richtung der Relativbewegung (+1 nach oben, −1 nach unten) */
+function parts2d(ctx, cam, m, sy0, rel, ink, ay){
+  const { X, Y } = cam, sx = X(0), sy = Y(sy0), px = X(m.x), py = Y(m.y);
+  ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(sx, sy, 4, 0, 7); ctx.fill();
+  text(ctx, "Start", sx - 7, sy + (rel > 0 ? 14 : -12), ink, 12, "right", "middle", 700, true);
+  if (S.show.help && m.t > 0){
+    line(ctx, sx, sy, px, sy, C.t2, 2.5, [7, 6]); line(ctx, px, sy, px, py, C.t1, 2.5, [7, 6]);
+    if (Math.abs(px - sx) > 24) text(ctx, "s₂ = " + fs(m.s2), (sx + px) / 2, sy + (rel > 0 ? 14 : -12), C.t2, 13, "center");
+    if (Math.abs(py - sy) > 24) text(ctx, "s₁ = " + fs(m.s1), px + 10, (sy + py) / 2, C.t1, 13, "left");
+  }
+  if (S.show.trail && m.t > 0){
+    line(ctx, sx, sy, px, py, C.s, 4);
+    if (Math.hypot(px - sx, py - sy) > 40) text(ctx, "s = " + fs(m.s), (sx + px) / 2 - 10, (sy + py) / 2, C.s, 14, "right");
+  }
+  return () => { // Pfeile zuletzt (über dem Körper)
+    if (!S.show.arrows || m.arrived) return;
+    const kk = 46, bx = px, by = ay;
+    arrow(ctx, bx, by, bx + m.v2 * kk, by, C.t2, 3);
+    arrow(ctx, bx, by, bx, by - rel * m.v1 * kk * (m.v1 > 3 ? 3 / m.v1 : 1), C.t1, 3);
+    const vy = rel * m.v1 * kk * (m.v1 > 3 ? 3 / m.v1 : 1), vx = m.v2 * kk * (m.v1 > 3 ? 3 / m.v1 : 1);
+    arrow(ctx, bx, by, bx + vx, by - vy, C.v, 3.4);
+    text(ctx, "v = " + fv(m.v), bx + vx + 8, by - vy - 6, C.v, 13, "left");
+  };
+}
+const INFO2D = {
+  quer:{ boje:m => ["Kamera fährt mit der Boje mit, also mit dem Wasser.", "Von dort aus gesehen schwimmt der Schwimmer mit v₁ = " + fv(m.v1) + " gerade quer, und das Ufer bewegt sich mit " + fv(-m.v2) + "."],
+         schwimmer:m => ["Kamera fährt mit dem Schwimmer mit.", "Das Ufer bewegt sich von dort aus gesehen schräg mit v = " + fv(m.v) + "."] },
+  kran:{ katze:m => ["Kamera fährt mit der Laufkatze mit.", "Von dort aus gesehen sinkt die Last mit v₁ = " + fv(m.v1) + " senkrecht nach unten, und der Boden bewegt sich mit " + fv(-m.v2) + "."],
+         last:m => ["Kamera fährt mit der Last mit.", "Der Boden bewegt sich von dort aus gesehen schräg mit v = " + fv(m.v) + "."] },
+  schirm:{ springer:m => ["Kamera fährt mit dem Springer mit.", "Der Boden bewegt sich von dort aus gesehen schräg mit v = " + fv(m.v) + "."] }
+};
+function info2d(m){ const f = (INFO2D[m.frei] || {})[vals().cam]; return f && !m.arrived ? f(m) : null; }
+
+function drawQuer(ctx, w, h){
+  const m = kin(), R = sceneRect(w, h), dk = C.dark, B = m.B, bankW = 2.2, mode = vals().cam || "ufer";
+  const drift = isFinite(m.tA) ? m.v2 * m.tA : m.v2 * tEnd(), mx = Math.max(3, 0.08 * (drift + B));
+  const follow = mode === "schwimmer" ? { x:m.x, y:m.y } : mode === "boje" ? { x:m.xBo } : null;
+  const cam = cam2d(w, h, R, { xa:-mx, xb:Math.max(drift, m.v2 * tEnd(), 0) + mx, ya:-bankW - 1.8, yb:B + bankW + 2, sx:0, sy:0, anchor:"bottom", follow });
+  const { X, Y, sc, xL, xR, yT, yB } = cam, f = sc;
   // Wiese von oben
   ctx.fillStyle = dk ? "#1d3a26" : "#9fcd8c"; ctx.fillRect(0, R.y, w, h - R.y);
   const gc = Math.max(1.5, 16 / sc);
@@ -1584,10 +1643,10 @@ function drawQuer(ctx, w, h){
   const cell = Math.max(0.8, 40 / sc), gap = Math.max(0.35, 26 / sc), dx = m.v2 * m.t;
   ctx.lineCap = "round";
   for (let r = Math.max(0, Math.floor(yB / gap)); r < Math.min(B / gap, yT / gap + 1); r++){
-    const yw = (r + 0.5) * gap, rows = B / gap; if (yw > B - 0.2) continue;
+    const yw = (r + 0.5) * gap; if (yw > B - 0.2) continue;
     for (let i = Math.floor((xL - dx) / cell) - 1; i < (xR - dx) / cell + 1; i++){
       const q = hash(i * 5.1 + r * 17); if (q < 0.4) continue;
-      const x = X(i * cell + dx + hash(i * 2.7 + r) * cell * 0.6), y = Y(yw + (hash(i + r * 3) - 0.5) * B / rows * 0.6), L = Math.max(8, Math.min(70, (0.7 + 1.4 * q) * sc));
+      const x = X(i * cell + dx + hash(i * 2.7 + r) * cell * 0.6), y = Y(yw + (hash(i + r * 3) - 0.5) * gap * 0.6), L = Math.max(8, Math.min(70, (0.7 + 1.4 * q) * sc));
       ctx.strokeStyle = q > 0.86 ? (dk ? "rgba(210,235,255,.45)" : "rgba(255,255,255,.9)") : (dk ? "rgba(160,200,235,.22)" : "rgba(255,255,255,.45)");
       ctx.lineWidth = q > 0.86 ? 2 : 1.4;
       ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + L * 0.25, y - 2.5, x + L * 0.5, y); ctx.quadraticCurveTo(x + L * 0.75, y + 2.5, x + L, y); ctx.stroke();
@@ -1614,64 +1673,227 @@ function drawQuer(ctx, w, h){
     if (yw > -bankW - r - 1 && yw < B + bankW + r + 1) continue;
     treeTop(ctx, X(xw), Y(yw), r * sc, dk, i * 31 + j * 7);
   }
-  // Startpunkt und Ankunftslinie
-  const sx = X(0), sy = Y(0), px = X(m.x), py = Y(m.y);
-  const ink = dk ? "#e6f2fb" : "#0b3a5a";
-  line(ctx, X(xL), Y(B), X(xR), Y(B), dk ? "rgba(255,255,255,.35)" : "rgba(255,255,255,.75)", 1.2, [5, 5]);
-  ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(sx, sy, 4, 0, 7); ctx.fill();
-  text(ctx, "Start", sx - 7, sy + 14, ink, 12, "right", "middle", 700, true);
-  // Teilwege und Gesamtweg
-  if (S.show.help && m.t > 0){
-    line(ctx, sx, sy, X(m.x), sy, C.t2, 2.5, [7, 6]); line(ctx, X(m.x), sy, px, py, C.t1, 2.5, [7, 6]);
-    if (Math.abs(X(m.x) - sx) > 24) text(ctx, "s₂ = " + fs(m.s2), (sx + X(m.x)) / 2, sy + 14, C.t2, 13, "center");
-    if (Math.abs(py - sy) > 24) text(ctx, "s₁ = " + fs(m.s1), X(m.x) + 10, (sy + py) / 2, C.t1, 13, "left");
-  }
-  if (S.show.trail && m.t > 0){
-    line(ctx, sx, sy, px, py, C.s, 4);
-    if (Math.hypot(px - sx, py - sy) > 40) text(ctx, "s = " + fs(m.s), (sx + px) / 2 - 10, (sy + py) / 2, C.s, 14, "right");
-  }
+  const ink = dk ? "#e6f2fb" : "#0b3a5a", px = X(m.x), py = Y(m.y);
+  line(ctx, 0, Y(B), w, Y(B), dk ? "rgba(255,255,255,.35)" : "rgba(255,255,255,.75)", 1.2, [5, 5]);
+  const arrows = parts2d(ctx, cam, m, 0, 1, ink, py - 0.4 * f);
   // Boje: startet am Startpunkt und treibt nur mit der Strömung
-  const bx = X(m.xBo), by = Y(0.5);
-  drawBuoyTop(ctx, bx, by, f, m.t);
+  drawBuoyTop(ctx, X(m.xBo), Y(0.5), f, m.t);
   // Schwimmer: schwimmt quer (Kopf zum anderen Ufer), wird von der Strömung abgetrieben
   ctx.save(); ctx.translate(px, py); ctx.rotate(-Math.PI / 2);
   drawSwimmerTop(ctx, 0, 0, f, 1, m.v1 * Math.min(m.t, m.tA) / 1.8, !m.arrived && m.v1 > 0.02);
   ctx.restore();
-  // Geschwindigkeitspfeile
-  const kk = 46;
-  if (S.show.arrows && !m.arrived){
-    const ax = px, ay = py - 0.4 * f;
-    arrow(ctx, ax, ay, ax + m.v2 * kk, ay, C.t2, 3);
-    arrow(ctx, ax, ay, ax, ay - m.v1 * kk, C.t1, 3);
-    arrow(ctx, ax, ay, ax + m.v2 * kk, ay - m.v1 * kk, C.v, 3.4);
-    line(ctx, ax + m.v2 * kk, ay, ax + m.v2 * kk, ay - m.v1 * kk, C.muted, 1, [3, 4]); line(ctx, ax, ay - m.v1 * kk, ax + m.v2 * kk, ay - m.v1 * kk, C.muted, 1, [3, 4]);
-    text(ctx, "v = " + fv(m.v), ax + m.v2 * kk + 8, ay - m.v1 * kk - 6, C.v, 13, "left");
-  }
+  arrows();
   if (m.arrived) text(ctx, "Angekommen nach " + ft(m.tA) + ", " + fmt(m.x, 1) + " m abgetrieben", Math.min(px + 16, w - 300), py + 22, ink, 13, "left", "middle", 700, true);
-  // Achsen: Abszisse unten (Lineal mit Zoom), Ordinate links
-  drawRuler(ctx, w, h, { D, sc, v0, padL, X, minLab:padL + 22 });
-  const ax = 30, yTop = Math.max(R.y + 50, Y(Math.min(yT, B + bankW + 2))), yBot = Math.min(h - 128, Y(Math.max(yB, -bankW - 1)));
-  if (yBot - yTop > 40){
-    line(ctx, ax, yTop, ax, yBot, C.muted, 1);
-    const step = niceStep(Math.max((yBot - yTop) / sc / 8, 36 / sc)), dg = step < 0.1 ? 2 : step < 1 ? 1 : 0;
-    for (let yw = Math.ceil(wy(yBot) / step) * step; Y(yw) >= yTop - 1e-6; yw += step){
-      const yy = Y(yw); line(ctx, ax - 4, yy, ax + 3, yy, C.muted, 1);
-      text(ctx, fmt(yw, dg), ax + 6, yy, C.muted, 11, "left", "middle", 500, true);
-    }
-    text(ctx, "y in m", ax - 6, yTop - 12, C.fg, 11, "left", "middle", 600, true);
-  }
-  text(ctx, "x in m", padL - 4, h - 28, C.fg, 11, "right", "middle", 600, true);
-  // Wertefelder in der Szene
-  const lab = "Schwimmer gegenüber dem Wasser: v₁ = " + fv(m.v1) + " ✎";
-  bubble(ctx, lab, Math.min(Math.max(px, 160), w - 160), Math.max(R.y + 16, Math.min(py - 1.0 * f - 36, Y(B + bankW) - 16)), C.t1, "vP", "center", 13);
-  const rowY = Math.min(Y(-bankW) + 22, lowLimit(ctx, w, h, null) - 40);
+  axes2d(ctx, w, h, R, cam);
+  const info = info2d(m);
+  bubble(ctx, "Schwimmer gegenüber dem Wasser: v₁ = " + fv(m.v1) + " ✎", Math.min(Math.max(px, 160), w - 160), Math.max(R.y + 16, Math.min(py - 1.0 * f - 36, Y(B + bankW) - 16)), C.t1, "vP", "center", 13);
+  const rowY = Math.min(Y(-bankW) + 22, lowLimit(ctx, w, h, info && info.join(" ")) - 12);
   bubble(ctx, "Strömung: v₂ = " + fv(m.v2) + " ✎", w / 2 - 8, rowY, C.t2, "vT", "right", 13);
   bubble(ctx, "Flussbreite: " + fmt(B, B < 10 ? 1 : 0) + " m ✎", w / 2 + 8, rowY, C.muted, "B", "left", 13);
-  text(ctx, "Strömung ⟶", padL + 8, Math.min(wB - 14, h - 140), dk ? "rgba(200,225,245,.85)" : "rgba(255,255,255,.95)", 13, "left", "middle", 700, false);
+  if (wB > R.y + 30 && wB < h) text(ctx, "Strömung ⟶", w - cam.padR, Math.min(wB - 14, h - 140), dk ? "rgba(200,225,245,.85)" : "rgba(255,255,255,.95)", 13, "right", "middle", 700, false);
+  if (info) followInfo(ctx, w, h, info[0], [info[1]]);
+  timeBadge(ctx, w, h, R);
+}
+
+/* --- Lastenkran (Seitenansicht): Laufkatze mit v₂ gegenüber dem Boden, Last sinkt mit v₁ gegenüber der Laufkatze --- */
+const kranJib = H => H + 6;
+function drawKran(ctx, w, h){
+  const m = kin(), R = sceneRect(w, h), dk = C.dark, H = m.H, Hj = kranJib(H), mode = vals().cam || "boden";
+  const drift = isFinite(m.tA) ? m.v2 * m.tA : m.v2 * tEnd(), xJ = Math.max(28, drift + 8);
+  const follow = mode === "last" ? { x:m.x, y:m.y + 0.6 } : mode === "katze" ? { x:m.xC } : null;
+  const cam = cam2d(w, h, R, { xa:-24, xb:Math.max(xJ, drift + 22) + 2, ya:-3, yb:Hj + 9, sx:0, sy:H, anchor:"top", follow });
+  const { X, Y, sc, xL, xR } = cam, f = sc, lw = k => Math.max(0.8, k * sc);
+  drawSky(ctx, w, R, Math.min(h, Y(0)), 0);
+  // Stadt im Hintergrund (fest an der Welt)
+  const bc = 16;
+  for (let i = Math.floor(xL / bc) - 1; i < xR / bc + 1; i++){
+    const q = hash(i * 3.7 + 1.3), bw = (8 + 6 * q), bh = 10 + 30 * hash(i * 5.1), x0 = i * bc + hash(i) * 4;
+    ctx.fillStyle = dk ? (q > 0.5 ? "#26354a" : "#2d3d54") : (q > 0.5 ? "#c9d6e3" : "#d6e0ea");
+    ctx.fillRect(X(x0), Y(bh), bw * sc, bh * sc);
+    if (bw * sc > 30) for (let fy = 2; fy < bh - 1; fy += 3) for (let fx = 1; fx < bw - 1; fx += 2.2){
+      ctx.fillStyle = dk ? (hash(i * 31 + fy * 7 + fx) > 0.55 ? "rgba(255,214,120,.75)" : "rgba(10,20,35,.5)") : "rgba(120,150,180,.35)";
+      ctx.fillRect(X(x0 + fx), Y(fy + 1.4), 1.1 * sc, 1.4 * sc);
+    }
+  }
+  // Rohbau rechts vom Absetzpunkt
+  const r0 = drift + 6, r1 = drift + 22, fl = 3;
+  for (let k = 0; k <= 4; k++){
+    ctx.fillStyle = dk ? "#5c6470" : "#a9b0ba"; ctx.fillRect(X(r0), Y(k * fl + 0.35), (r1 - r0) * sc, 0.35 * sc);
+    if (k < 4) for (const cx of [r0 + 0.3, (r0 + r1) / 2, r1 - 0.7]){ ctx.fillStyle = dk ? "#6a737f" : "#bcc2ca"; ctx.fillRect(X(cx), Y((k + 1) * fl), 0.4 * sc, (fl - 0.35) * sc); }
+  }
+  ctx.strokeStyle = dk ? "#b9772a" : "#e28a2b"; ctx.lineWidth = lw(0.06);
+  for (let k = 0; k < 5; k++){ ctx.beginPath(); ctx.moveTo(X(r1 + 0.6), Y(k * fl)); ctx.lineTo(X(r1 + 0.6), Y((k + 1) * fl)); ctx.moveTo(X(r1 + 0.6), Y(k * fl)); ctx.lineTo(X(r1 + 1.6), Y((k + 1) * fl)); ctx.moveTo(X(r1 + 1.6), Y(k * fl)); ctx.lineTo(X(r1 + 1.6), Y((k + 1) * fl)); ctx.stroke(); }
+  // Boden: Baustelle mit Schotter
+  const gY = Y(0), gg = ctx.createLinearGradient(0, gY, 0, h);
+  gg.addColorStop(0, dk ? "#4a4032" : "#c9b48a"); gg.addColorStop(1, dk ? "#332c22" : "#b39c70");
+  ctx.fillStyle = gg; ctx.fillRect(0, gY, w, h - gY);
+  const pc = Math.max(0.4, 7 / sc);
+  for (let i = Math.floor(xL / pc) - 1; i < xR / pc + 1; i++) for (let j = 0; j < 4; j++){
+    const q = hash(i * 2.3 + j * 9.1); if (q < 0.55) continue;
+    ctx.fillStyle = q > 0.85 ? (dk ? "#6b6052" : "#8f7d5c") : (dk ? "#5a5044" : "#a8936c");
+    ctx.beginPath(); ctx.ellipse(X(i * pc + hash(i + j) * pc), gY + (0.15 + j * 0.25 + hash(i * 5 + j) * 0.2) * Math.min(3 * sc, h - gY), Math.max(1, 0.1 * sc), Math.max(0.8, 0.06 * sc), 0, 0, 7); ctx.fill();
+  }
+  // Kran: Fundament, Gittermast, Ausleger, Gegenausleger, Turmspitze
+  const yel = C.steel, yel2 = dk ? "#a8770a" : "#b97f06", mx0 = -7, mx1 = -5;
+  ctx.fillStyle = dk ? "#59606b" : "#9aa1aa"; ctx.fillRect(X(-8.6), Y(1.2), 5.2 * sc, 1.2 * sc);
+  ctx.strokeStyle = yel; ctx.lineWidth = lw(0.16); ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(X(mx0), Y(1.2)); ctx.lineTo(X(mx0), Y(Hj + 7)); ctx.moveTo(X(mx1), Y(1.2)); ctx.lineTo(X(mx1), Y(Hj)); ctx.stroke();
+  ctx.strokeStyle = yel2; ctx.lineWidth = lw(0.08); ctx.beginPath();
+  for (let y = 1.2; y < Hj - 0.1; y += 2){ ctx.moveTo(X(mx0), Y(y)); ctx.lineTo(X(mx1), Y(Math.min(y + 2, Hj))); ctx.moveTo(X(mx0), Y(y)); ctx.lineTo(X(mx1), Y(y)); }
+  ctx.stroke();
+  // Ausleger: Untergurt (Fahrbahn der Laufkatze) und Obergurt, Diagonalen
+  ctx.strokeStyle = yel; ctx.lineWidth = lw(0.16); ctx.beginPath();
+  ctx.moveTo(X(mx1), Y(Hj)); ctx.lineTo(X(xJ), Y(Hj)); ctx.moveTo(X(mx1), Y(Hj + 1.8)); ctx.lineTo(X(xJ - 1), Y(Hj + 1.2)); ctx.stroke();
+  ctx.strokeStyle = yel2; ctx.lineWidth = lw(0.08); ctx.beginPath();
+  for (let x = mx1, k = 0; x < xJ - 1; x += 2, k++){ const t1 = 1.8 - 0.6 * (x - mx1) / (xJ - 1 - mx1), t2 = 1.8 - 0.6 * (x + 2 - mx1) / (xJ - 1 - mx1);
+    ctx.moveTo(X(x), Y(Hj)); ctx.lineTo(X(x + 1), Y(Hj + (t1 + t2) / 2)); ctx.lineTo(X(x + 2), Y(Hj)); }
+  ctx.stroke();
+  // Gegenausleger mit Ballast
+  ctx.strokeStyle = yel; ctx.lineWidth = lw(0.16); ctx.beginPath(); ctx.moveTo(X(mx0), Y(Hj)); ctx.lineTo(X(-22), Y(Hj)); ctx.moveTo(X(mx0), Y(Hj + 1.2)); ctx.lineTo(X(-22), Y(Hj + 0.8)); ctx.stroke();
+  ctx.fillStyle = dk ? "#7d848e" : "#8d949d"; for (let k = 0; k < 3; k++) ctx.fillRect(X(-21.5 + k * 1.4), Y(Hj), 1.3 * sc, 2.6 * sc);
+  // Turmspitze mit Abspannungen
+  ctx.strokeStyle = dk ? "#8b95a5" : "#5f6875"; ctx.lineWidth = lw(0.05); ctx.beginPath();
+  ctx.moveTo(X(mx0), Y(Hj + 7)); ctx.lineTo(X(xJ * 0.65), Y(Hj + 1.8 - 0.6 * 0.65)); ctx.moveTo(X(mx0), Y(Hj + 7)); ctx.lineTo(X(-22), Y(Hj + 0.8)); ctx.stroke();
+  ctx.strokeStyle = yel; ctx.lineWidth = lw(0.16); ctx.beginPath(); ctx.moveTo(X(mx1), Y(Hj + 1.8)); ctx.lineTo(X(mx0), Y(Hj + 7)); ctx.stroke();
+  // Führerhaus
+  ctx.fillStyle = yel; rrect(ctx, X(-9.4), Y(Hj - 0.2), 2.4 * sc, 2.4 * sc, Math.max(1, 0.2 * sc)); ctx.fill();
+  ctx.fillStyle = dk ? "#9fc4e6" : "#cfe6f7"; ctx.fillRect(X(-9.1), Y(Hj - 0.6), 1.6 * sc, 1.2 * sc);
+  // Laufkatze, Seile, Unterflasche, Anschlagketten und Last
+  const xc = m.xC, ty = Hj, hookY = m.y + 1.1 + 1.8;
+  ctx.fillStyle = dk ? "#4b525c" : "#59616c"; rrect(ctx, X(xc - 0.9), Y(ty - 0.05), 1.8 * sc, 0.75 * sc, Math.max(1, 0.1 * sc)); ctx.fill();
+  ctx.fillStyle = dk ? "#2a2f36" : "#333a44"; for (const wx2 of [xc - 0.55, xc + 0.55]){ ctx.beginPath(); ctx.arc(X(wx2), Y(ty), Math.max(1.2, 0.2 * sc), 0, 7); ctx.fill(); }
+  ctx.strokeStyle = dk ? "#c8ced6" : "#3d444e"; ctx.lineWidth = Math.max(1, 0.04 * sc); ctx.beginPath();
+  ctx.moveTo(X(xc - 0.25), Y(ty - 0.8)); ctx.lineTo(X(m.x - 0.15), Y(hookY + 0.9)); ctx.moveTo(X(xc + 0.25), Y(ty - 0.8)); ctx.lineTo(X(m.x + 0.15), Y(hookY + 0.9)); ctx.stroke();
+  ctx.fillStyle = "#e2b007"; rrect(ctx, X(m.x - 0.35), Y(hookY + 0.9), 0.7 * sc, 0.9 * sc, Math.max(1, 0.1 * sc)); ctx.fill();
+  ctx.strokeStyle = dk ? "#c8ced6" : "#3d444e"; ctx.lineWidth = Math.max(1, 0.05 * sc); ctx.beginPath(); ctx.arc(X(m.x), Y(hookY - 0.15), Math.max(1.5, 0.18 * sc), -0.3, Math.PI + 0.6); ctx.stroke();
+  ctx.lineWidth = Math.max(0.8, 0.03 * sc); ctx.beginPath(); ctx.moveTo(X(m.x), Y(hookY - 0.3)); ctx.lineTo(X(m.x - 0.95), Y(m.y + 1.15)); ctx.moveTo(X(m.x), Y(hookY - 0.3)); ctx.lineTo(X(m.x + 0.95), Y(m.y + 1.15)); ctx.stroke();
+  // Schatten am Boden
+  ctx.fillStyle = `rgba(0,0,0,${Math.max(0.05, 0.25 - m.y * 0.008)})`; ctx.beginPath(); ctx.ellipse(X(m.x), gY + 2, (1.2 + m.y * 0.04) * sc, Math.max(2, 0.18 * sc), 0, 0, 7); ctx.fill();
+  // Palette mit Ziegeln (Bezugspunkt: Unterkante Mitte)
+  ctx.fillStyle = "#a8763e"; ctx.fillRect(X(m.x - 1), Y(m.y + 0.15), 2 * sc, 0.15 * sc);
+  const bl = Y(m.y + 1.15), bh = 1.0 * sc;
+  ctx.fillStyle = "#c4553a"; ctx.fillRect(X(m.x - 0.95), bl, 1.9 * sc, bh);
+  if (sc > 8){ ctx.strokeStyle = "rgba(240,225,200,.7)"; ctx.lineWidth = Math.max(0.6, 0.02 * sc); ctx.beginPath();
+    for (let r = 0; r < 4; r++){ const yy = bl + r * bh / 4; ctx.moveTo(X(m.x - 0.95), yy); ctx.lineTo(X(m.x + 0.95), yy); for (let c = (r % 2 ? 0.24 : 0); c < 1.9; c += 0.48){ ctx.moveTo(X(m.x - 0.95 + c), yy); ctx.lineTo(X(m.x - 0.95 + c), yy + bh / 4); } }
+    ctx.stroke(); }
+  const ink = dk ? "#e6f2fb" : "#1b2b3a";
+  const arrows = parts2d(ctx, cam, m, H, -1, ink, Y(m.y + 0.6));
+  arrows();
+  if (m.arrived) text(ctx, "Abgesetzt nach " + ft(m.tA) + ", " + fmt(m.x, 1) + " m nach rechts", Math.min(X(m.x) + 2 * sc + 10, w - 300), Y(m.y + 0.6), ink, 13, "left", "middle", 700, true);
+  axes2d(ctx, w, h, R, cam);
+  const info = info2d(m);
+  bubble(ctx, "Laufkatze gegenüber dem Boden: v₂ = " + fv(m.v2) + " ✎", Math.min(Math.max(X(xc), 170), w - 170), Math.max(R.y + 16, Y(Hj + 2) - 18), C.t2, "vT", "center", 13);
+  bubble(ctx, "Last gegenüber der Laufkatze (sinkt): v₁ = " + fv(m.v1) + " ✎", X(m.x) + 10, Math.min(Math.max(Y(m.y + 1.2) - 40, R.y + 50), h - 170), C.t1, "vP", "left", 13);
+  const rowY = Math.min(Math.max(gY + 30, R.y + 60), lowLimit(ctx, w, h, info && info.join(" ")) - 12);
+  bubble(ctx, "Starthöhe der Last: " + fmt(H, H < 10 ? 1 : 0) + " m ✎", w / 2, rowY, C.muted, "H", "center", 13);
+  if (info) followInfo(ctx, w, h, info[0], [info[1]]);
+  timeBadge(ctx, w, h, R);
+}
+
+/* --- Luftlandung bei Wind (Seitenansicht): Springer sinkt mit v₁ gegenüber der Luft, Wind v₂ gegenüber dem Boden --- */
+function cloud(ctx, x, y, s, dk, seed){
+  ctx.fillStyle = dk ? "rgba(170,185,210,.22)" : "rgba(255,255,255,.92)";
+  const n = 5;
+  for (let i = 0; i < n; i++){ const dx = (i - (n - 1) / 2) * s * 0.22, r = s * (0.16 + 0.1 * hash(seed + i)) * (1 - Math.abs(i - (n - 1) / 2) * 0.15);
+    ctx.beginPath(); ctx.arc(x + dx, y - r * 0.4, r, 0, 7); ctx.fill(); }
+  ctx.beginPath(); ctx.ellipse(x, y, s * 0.55, s * 0.12, 0, 0, 7); ctx.fill();
+}
+function drawJumper(ctx, X, Y, x, y, sc, landed, t){
+  const lw = k => Math.max(0.8, k * sc), dk = C.dark;
+  const cols = ["#e8483c", "#f4f1e6", "#2f6fd6"];
+  if (!landed){
+    // Gleitschirm (ca. 8 m breit), Leinen zum Gurtzeug
+    const cy = y + 7, cw = 4, sag = 0.9;
+    const P = u => [x + u * cw, cy + sag * (1 - u * u)];
+    for (let k = 0; k < 9; k++){
+      const u0 = -1 + k * 2 / 9, u1 = u0 + 2 / 9, a = P(u0), b = P(u1);
+      ctx.fillStyle = cols[k % 3]; ctx.beginPath();
+      ctx.moveTo(X(a[0]), Y(a[1] + 0.75)); ctx.lineTo(X(b[0]), Y(b[1] + 0.75)); ctx.lineTo(X(b[0]), Y(b[1])); ctx.lineTo(X(a[0]), Y(a[1])); ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = lw(0.03); ctx.beginPath();
+    for (let k = 0; k <= 9; k++){ const u = -1 + k * 2 / 9, a = P(u); ctx.moveTo(X(a[0]), Y(a[1])); ctx.lineTo(X(a[0]), Y(a[1] + 0.75)); } ctx.stroke();
+    ctx.strokeStyle = dk ? "rgba(220,225,235,.6)" : "rgba(60,60,70,.55)"; ctx.lineWidth = Math.max(0.6, 0.015 * sc); ctx.beginPath();
+    for (let k = 0; k <= 6; k++){ const u = -1 + k / 3, a = P(u); ctx.moveTo(X(a[0]), Y(a[1])); ctx.lineTo(X(x + (u < 0 ? -0.2 : 0.2)), Y(y + 1.5)); } ctx.stroke();
+  } else {
+    // gelandet: Schirm liegt windabwärts am Boden
+    ctx.fillStyle = cols[0]; ctx.beginPath(); ctx.ellipse(X(x + 4), Y(0.25), 3.2 * sc, Math.max(2, 0.35 * sc), 0, 0, 7); ctx.fill();
+    ctx.fillStyle = cols[1]; ctx.beginPath(); ctx.ellipse(X(x + 3.2), Y(0.35), 1.6 * sc, Math.max(1.5, 0.22 * sc), 0, 0, 7); ctx.fill();
+  }
+  // Springer (1,8 m): Beine, Körper, Arme an den Steuerleinen, Helm
+  ctx.lineCap = "round"; ctx.strokeStyle = dk ? "#2b3340" : "#2a3140";
+  ctx.lineWidth = lw(0.18); ctx.beginPath(); ctx.moveTo(X(x - 0.1), Y(y)); ctx.lineTo(X(x - 0.05), Y(y + 0.85)); ctx.moveTo(X(x + 0.15), Y(y + 0.05)); ctx.lineTo(X(x + 0.05), Y(y + 0.85)); ctx.stroke();
+  ctx.strokeStyle = "#f08c1a"; ctx.lineWidth = lw(0.32); ctx.beginPath(); ctx.moveTo(X(x), Y(y + 0.85)); ctx.lineTo(X(x), Y(y + 1.45)); ctx.stroke();
+  ctx.strokeStyle = "#f08c1a"; ctx.lineWidth = lw(0.12); ctx.beginPath(); ctx.moveTo(X(x), Y(y + 1.4)); ctx.lineTo(X(x - 0.3), Y(y + 1.9)); ctx.moveTo(X(x), Y(y + 1.4)); ctx.lineTo(X(x + 0.3), Y(y + 1.9)); ctx.stroke();
+  ctx.fillStyle = "#e0aa7c"; ctx.beginPath(); ctx.arc(X(x), Y(y + 1.62), Math.max(1.5, 0.14 * sc), 0, 7); ctx.fill();
+  ctx.fillStyle = "#f5c518"; ctx.beginPath(); ctx.arc(X(x), Y(y + 1.66), Math.max(1.5, 0.14 * sc), Math.PI, 0); ctx.fill();
+}
+function drawSchirm(ctx, w, h){
+  const m = kin(), R = sceneRect(w, h), dk = C.dark, H = m.H, mode = vals().cam || "boden";
+  const drift = isFinite(m.tA) ? m.v2 * m.tA : m.v2 * tEnd();
+  const follow = mode === "springer" ? { x:m.x, y:m.y + 3 } : null;
+  const cam = cam2d(w, h, R, { xa:-12, xb:drift + 22, ya:-4, yb:H + 12, sx:0, sy:H, anchor:"top", follow });
+  const { X, Y, sc, xL, xR, yT } = cam;
+  drawSky(ctx, w, R, Math.min(h, Y(0)), 0);
+  // Wolken (fest an der Welt)
+  const cc = 70;
+  for (let i = Math.floor(xL / cc) - 1; i < xR / cc + 1; i++) for (let j = 0; j < 6; j++){
+    if (hash(i * 4.1 + j * 7.7) < 0.55) continue;
+    const yw = 30 + j * 45 + hash(i + j * 13) * 30, xw = i * cc + hash(i * 3 + j) * cc;
+    if (yw > yT + 40) continue;
+    cloud(ctx, X(xw), Y(yw), (18 + 22 * hash(i * 9 + j)) * sc, dk, i * 7 + j);
+  }
+  // Windstriche treiben mit dem Wind
+  const wc = 25, off = m.v2 * m.t;
+  ctx.strokeStyle = dk ? "rgba(200,215,240,.28)" : "rgba(80,120,170,.28)"; ctx.lineWidth = 1.3;
+  for (let i = Math.floor((xL - off) / wc) - 1; i < (xR - off) / wc + 1; i++) for (let j = 0; j < 8; j++){
+    if (hash(i * 6.3 + j * 2.9) < 0.6) continue;
+    const yw = 8 + j * Math.max(12, H / 7) + hash(i + j) * 8, xw = i * wc + off + hash(i * 5 + j) * wc;
+    ctx.beginPath(); ctx.moveTo(X(xw), Y(yw)); ctx.lineTo(X(xw) + Math.max(10, 5 * sc), Y(yw)); ctx.stroke();
+  }
+  // ferne Hügel und Wald am Horizont
+  ctx.fillStyle = dk ? "#22384a" : "#b7d3c4"; ctx.beginPath(); ctx.moveTo(0, Y(0));
+  for (let px = 0; px <= w + 8; px += 8){ const xw = cam.wx(px); ctx.lineTo(px, Y(14 + 10 * Math.sin(xw / 60) + 6 * Math.sin(xw / 23 + 1))); }
+  ctx.lineTo(w, Y(0)); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = dk ? "#1b3324" : "#7fae79"; ctx.beginPath(); ctx.moveTo(0, Y(0));
+  for (let px = 0; px <= w + 6; px += 6){ const xw = cam.wx(px); ctx.lineTo(px, Y(7 + 3 * Math.sin(xw / 9) + 2 * hash(Math.floor(xw / 3)))); }
+  ctx.lineTo(w, Y(0)); ctx.closePath(); ctx.fill();
+  // Wiese
+  const gY = Y(0), gg = ctx.createLinearGradient(0, gY, 0, h);
+  gg.addColorStop(0, dk ? "#1f4029" : "#8cc477"); gg.addColorStop(1, dk ? "#173220" : "#74b064");
+  ctx.fillStyle = gg; ctx.fillRect(0, gY, w, h - gY);
+  // Bäume (Seitenansicht, ca. 8–16 m hoch)
+  const tc = 22;
+  for (let i = Math.floor(xL / tc) - 1; i < xR / tc + 1; i++){
+    if (hash(i * 8.1) < 0.5) continue;
+    const xw = i * tc + hash(i * 2.2) * tc; if (Math.abs(xw - drift) < 10) continue;
+    tree(ctx, X(xw), gY + 1, (8 + 8 * hash(i * 3.3)) * sc, hash(i * 5.5) > 0.6, dk, i);
+  }
+  // Windsack am Landeplatz
+  const ws = drift + 14, sp = Math.min(1, m.v2 / 8);
+  ctx.strokeStyle = dk ? "#c8ced6" : "#4a5260"; ctx.lineWidth = Math.max(1, 0.1 * sc); ctx.beginPath(); ctx.moveTo(X(ws), gY); ctx.lineTo(X(ws), Y(6)); ctx.stroke();
+  for (let k = 0; k < 4; k++){ const a = k * 0.6, b = a + 0.6, d = 0.6 - 0.2 * sp; ctx.fillStyle = k % 2 ? "#f4f1e6" : "#e8483c"; ctx.beginPath();
+    ctx.moveTo(X(ws + a), Y(6 - a * (1 - sp) * 0.5)); ctx.lineTo(X(ws + b), Y(6 - b * (1 - sp) * 0.5)); ctx.lineTo(X(ws + b), Y(6 - b * (1 - sp) * 0.5 - 0.5 + k * 0.08)); ctx.lineTo(X(ws + a), Y(6 - a * (1 - sp) * 0.5 - 0.5 + (k - 1) * 0.08)); ctx.closePath(); ctx.fill(); }
+  // Schatten am Boden
+  ctx.fillStyle = `rgba(0,0,0,${Math.max(0.04, 0.2 - m.y * 0.002)})`; ctx.beginPath(); ctx.ellipse(X(m.x), gY + 2, Math.max(3, (1 + m.y * 0.02) * sc), Math.max(1.5, 0.2 * sc), 0, 0, 7); ctx.fill();
+  const ink = dk ? "#e6f2fb" : "#1b2b3a";
+  const arrows = parts2d(ctx, cam, m, H, -1, ink, Y(m.y + 1));
+  drawJumper(ctx, X, Y, m.x, m.y, sc, m.arrived, m.t);
+  arrows();
+  if (m.arrived) text(ctx, "Gelandet nach " + ft(m.tA) + ", " + fmt(m.x, 1) + " m abgetrieben", Math.min(X(m.x) + 14, w - 300), Math.max(gY - 30, R.y + 40), ink, 13, "left", "middle", 700, true);
+  axes2d(ctx, w, h, R, cam);
+  const info = info2d(m);
+  bubble(ctx, "Wind gegenüber dem Boden: v₂ = " + fv(m.v2) + " ✎", w / 2, R.y + 16, C.t2, "vT", "center", 13);
+  bubble(ctx, "Springer gegenüber der Luft (sinkt): v₁ = " + fv(m.v1) + " ✎", Math.min(X(m.x) + 4.5 * sc + 14, w - 330), (m.arrived ? Math.max(Math.min(Y(m.y + 5), gY - 64), R.y + 54) : Math.min(Math.max(Y(m.y + 5), R.y + 54), h - 170)), C.t1, "vP", "left", 13);
+  const rowY = Math.min(Math.max(gY + 30, R.y + 60), lowLimit(ctx, w, h, info && info.join(" ")) - 12);
+  bubble(ctx, "Starthöhe: " + fmt(H, 0) + " m ✎", w / 2, rowY, C.muted, "H", "center", 13);
+  if (info) followInfo(ctx, w, h, info[0], [info[1]]);
   timeBadge(ctx, w, h, R);
 }
 function draw2d(ctx, w, h){
-  if (kontext().frei === "quer") return drawQuer(ctx, w, h);
+  const fr2 = kontext().frei;
+  if (fr2 === "quer") return drawQuer(ctx, w, h);
+  if (fr2 === "kran") return drawKran(ctx, w, h);
+  if (fr2 === "schirm") return drawSchirm(ctx, w, h);
   const k = kontext(), m = kin(), R = sceneRect(w, h);
   let padT, padB, padL = 30, padR = 30;
   if (k.szene === "fluss2d"){ padT = 56; padB = 46; }
@@ -1803,18 +2025,18 @@ function timeBadge(ctx, w, h, R){
    ============================================================ */
 function diaData(){
   const k = kontext(), F = vals(), d2 = bereich().d ? bereich().d[1] : 1, T = tEnd();
-  if (k.frei === "quer"){
+  if (k.frei === "quer" || k.frei === "kran" || k.frei === "schirm"){
     const P = t => { const S0 = S.t; S.t = t; const m = kin(); S.t = S0; return m; };
-    const sw = "Schwimmer", ref = "gegenüber dem Ufer";
+    const body = { quer:"Schwimmer", kran:"Last", schirm:"Springer" }[k.frei], ref = "gegenüber dem Boden";
+    // Träger: Boje (treibt mit dem Wasser, liegt auf der x-Achse), Laufkatze (fährt oben am Ausleger)
+    const car = k.frei === "quer" ? { lab:"Boje", y:0 } : k.frei === "kran" ? { lab:"Laufkatze", y:kranJib(F.H) } : null;
+    const cs = (fx, fv2) => car ? [{ lab:car.lab, col:C.t2, lw:6, alpha:0.35, x:fx, v:fv2 }] : [];
+    const bs = (fx, fv2) => [{ lab:body, col:C.v, x:fx, v:fv2 }];
     return { quad:true, T, panels:[
-      { kind:"s", T, ref, title:["x-t-Diagramm"], yLab:["x in m"], series:[
-        { lab:"Boje", col:C.t2, lw:6, alpha:0.35, x:t => F.vT * t, v:() => F.vT },
-        { lab:sw, col:C.v, x:t => P(t).x, v:t => P(t).vx }] },
-      { kind:"s", T, ref, title:["y-t-Diagramm"], yLab:["y in m"], series:[{ lab:sw, col:C.v, x:t => P(t).y, v:t => P(t).vy }] },
-      { kind:"v", T, ref, title:["v", "x", "-t-Diagramm"], yLab:["v", "x", " in m/s"], series:[
-        { lab:"Boje", col:C.t2, lw:6, alpha:0.35, x:t => F.vT * t, v:() => F.vT },
-        { lab:sw, col:C.v, x:t => P(t).x, v:t => P(t).vx }] },
-      { kind:"v", T, ref, title:["v", "y", "-t-Diagramm"], yLab:["v", "y", " in m/s"], series:[{ lab:sw, col:C.v, x:t => P(t).y, v:t => P(t).vy }] }] };
+      { kind:"s", T, ref, title:["x-t-Diagramm"], yLab:["x in m"], series:[...cs(t => P(t).xC, t => P(t).vC), ...bs(t => P(t).x, t => P(t).vx)] },
+      { kind:"s", T, ref, title:["y-t-Diagramm"], yLab:["y in m"], series:[...cs(() => car.y, () => 0), ...bs(t => P(t).y, t => P(t).vy)] },
+      { kind:"v", T, ref, title:["v", "x", "-t-Diagramm"], yLab:["v", "x", " in m/s"], series:[...cs(t => P(t).xC, t => P(t).vC), ...bs(t => P(t).x, t => P(t).vx)] },
+      { kind:"v", T, ref, title:["v", "y", "-t-Diagramm"], yLab:["v", "y", " in m/s"], series:[...cs(() => car.y, () => 0), ...bs(t => P(t).y, t => P(t).vy)] }] };
   }
   if (k.frei === "strasse"){
     const g = d2 < 0, P = t => strassePos(F, g, t);
@@ -1933,13 +2155,13 @@ function applyKontext(){
   }
   $("ghostRow").hidden = k.szene === "strasse" || k.szene === "kran";
   $("paramRow").hidden = !k.frei; $("diaRow").hidden = !k.frei;
-  const q = k.frei === "quer";
+  const q = ["quer", "kran", "schirm"].includes(k.frei);
   $("labDiaS").innerHTML = q ? "x-t- und y-t-Diagramm einblenden" : "s-t-Diagramm einblenden";
   $("labDiaV").innerHTML = q ? "v<sub>x</sub>-t- und v<sub>y</sub>-t-Diagramm einblenden" : "v-t-Diagramm einblenden";
   $("sliders").hidden = !!k.frei; $("freiNote").hidden = !k.frei; $("lkwBox").hidden = k.frei !== "strasse"; buildCam();
   $("laneBox").hidden = !(k.frei === "strasse" && bereich().d[1] < 0);
   $("freiNote").textContent = (FREI_NOTE[k.frei + (bereich().d && bereich().d[1] < 0 ? "G" : "")] || FREI_NOTE[k.frei] || "")
-    + (k.frei && k.frei !== "quer" ? " Mit dem Knopf „Kamera zieht mit“ unten rechts hältst du die Kamera fest; dann verschiebst du das Bild mit der Maus." : "");
+    + (k.frei && !["quer", "kran", "schirm"].includes(k.frei) ? " Mit dem Knopf „Kamera zieht mit“ unten rechts hältst du die Kamera fest; dann verschiebst du das Bild mit der Maus." : "");
   $("ghostRow").hidden = $("ghostRow").hidden || !!k.frei;
   if (k.frei === "strasse") markLkw();
   closeEdit(); $("tMaxEdit").hidden = true;
@@ -1951,7 +2173,9 @@ const FREI_NOTE = {
   strasseG:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Unter „Fahrbahn“ fahren sie getrennt aneinander vorbei oder auf derselben Fahrbahn ineinander. Mit dem Mausrad (oder + und −) zoomst du bis auf 2 m heran; steht die Kamera an der Straße, zeigt das Bild dann den Treffpunkt, und die Fahrzeuge kommen von außerhalb ins Bild. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren.",
   strasse:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu, die Leitpfosten stehen alle 50 m. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren: Dann steht dieses Fahrzeug in der Bildmitte still und alles andere zieht vorbei.",
   fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Die Boje treibt mit der Strömung; ihren Startpunkt kannst du anklicken oder die Boje vor dem Start verschieben. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Mit dem Mausrad (oder + und −) zoomst du. Der Schwimmer ist maßstabsgetreu, die Laufzeit beträgt 60 s (unter „Ablauf“ auf die Endzeit klicken, um sie zu ändern).",
-  quer:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, quer zum Fluss), die Strömung v₂ (gegenüber dem Ufer) und die Flussbreite stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x, längs des Flusses) und Ordinate (y, quer) sind in Metern bemaßt, der Ursprung liegt am Startpunkt. Die Boje startet am Startpunkt und treibt mit der Strömung. Mit dem Mausrad (oder + und −) zoomst du an den Schwimmer heran. Die Laufzeit reicht bis zum anderen Ufer.",
+  quer:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, quer zum Fluss), die Strömung v₂ (gegenüber dem Ufer) und die Flussbreite stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x, längs des Flusses) und Ordinate (y, quer) sind in Metern bemaßt, der Ursprung liegt am Startpunkt. Die Boje startet am Startpunkt und treibt mit der Strömung. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei unten links. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Die Laufzeit reicht bis zum anderen Ufer.",
+  kran:"Die Geschwindigkeit der Laufkatze v₂ (gegenüber dem Boden), das Absenken v₁ (gegenüber der Laufkatze) und die Starthöhe der Last stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x) und Ordinate (y, Höhe über dem Boden) sind in Metern bemaßt. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei oben links. Unter „Kamera“ steht die Kamera am Boden oder fährt mit der Laufkatze oder der Last mit. Alles ist maßstabsgetreu.",
+  schirm:"Den Wind v₂ (gegenüber dem Boden), das Sinken v₁ (gegenüber der Luft) und die Starthöhe stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x) und Ordinate (y, Höhe über dem Boden) sind in Metern bemaßt. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei oben links. Unter „Kamera“ steht die Kamera am Boden oder fährt mit dem Springer mit. Alles ist maßstabsgetreu, der Schirm ist etwa 8 m breit.",
   band:"Gehgeschwindigkeit v₁ der Person, Geschwindigkeit v₂ des Laufbands (gegenüber dem Boden), Bandlänge und Bandanfang stellst du direkt in der Szene ein: Wert anklicken. Die Person kannst du vor dem Start auch verschieben; die 0 m liegt immer an ihrem Startpunkt. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit der Person mit. Alles ist maßstabsgetreu, das Geländer ist 1 m hoch."
 };
 function markLkw(){
@@ -1962,7 +2186,10 @@ function markLkw(){
 document.querySelectorAll("#laneSel .btn").forEach(b => b.addEventListener("click", () => { vals().lane = b.dataset.lane; markLkw(); S.t = 0; setPlay(false); render(); }));
 const CAMS = {
   strasse:[["strasse", "steht an der Straße"], ["pkw", "fährt mit dem Pkw mit"], ["lkw", "fährt mit dem Lkw mit"]],
-  fluss:[["ufer", "steht am Ufer"], ["boje", "fährt mit der Boje mit"], ["schwimmer", "fährt mit dem Schwimmer mit"]]
+  fluss:[["ufer", "steht am Ufer"], ["boje", "fährt mit der Boje mit"], ["schwimmer", "fährt mit dem Schwimmer mit"]],
+  quer:[["ufer", "steht am Ufer"], ["boje", "fährt mit der Boje mit"], ["schwimmer", "fährt mit dem Schwimmer mit"]],
+  kran:[["boden", "steht am Boden"], ["katze", "fährt mit der Laufkatze mit"], ["last", "fährt mit der Last mit"]],
+  schirm:[["boden", "steht am Boden"], ["springer", "fährt mit dem Springer mit"]]
 };
 function buildCam(){
   const list = CAMS[kontext().frei], box = $("camSel");
@@ -2063,6 +2290,8 @@ const EDIT_LAB = {
   strasseG:{ vA:"Pkw gegenüber der Straße (nach rechts): v =", vL:"Lkw gegenüber der Straße (nach links): v₁ =", xA:"Pkw startet bei", xL:"Lkw startet bei" },
   strasse:{ vA:"Pkw gegenüber der Straße: v =", vL:"Lkw gegenüber der Straße: v₁ =", xA:"Pkw startet bei", xL:"Lkw startet bei" },
   fluss:{ vP:"Schwimmer gegenüber dem Wasser: v₁ =", vT:"Strömung gegenüber dem Ufer: v₂ =", xBo:"Die Boje startet bei", xS:"Der Schwimmer startet bei" },
+  kran:{ vP:"Last gegenüber der Laufkatze (Absenken): v₁ =", vT:"Laufkatze gegenüber dem Boden: v₂ =", H:"Starthöhe der Last" },
+  schirm:{ vP:"Springer gegenüber der Luft (Sinken): v₁ =", vT:"Wind gegenüber dem Boden: v₂ =", H:"Starthöhe" },
   quer:{ vP:"Schwimmer gegenüber dem Wasser (quer zum Fluss): v₁ =", vT:"Strömung gegenüber dem Ufer: v₂ =", B:"Breite des Flusses" },
   band:{ vP:"Person geht (gegenüber Boden bzw. Band) mit v₁ =", vT:"Laufband gegenüber dem Boden: v₂ =", Lb:"Länge des Laufbands", xB:"Das Band beginnt bei (Start der Person = 0 m)" }
 };
@@ -2072,11 +2301,13 @@ const EDIT_RANGE = {
   // Der Schwimmer schwimmt gegenüber dem Wasser immer vorwärts (v₁ ≥ 0)
   fluss:{ vP:[0, 2.5], vT:[0, 5], xBo:[-200, 200], xS:[-200, 200] },
   quer:{ vP:[0.1, 2.5], vT:[0, 5], B:[5, 300] },
+  kran:{ vP:[0.05, 2], vT:[0, 3], H:[2, 60] },
+  schirm:{ vP:[1, 10], vT:[0, 20], H:[20, 3000] },
   band:{ vP:[0.1, 4], vT:[0, 3], xB:F => [1 - F.Lb, 100], Lb:F => [Math.max(2, 1 - F.xB), 500] }
 };
 const rangeOf = k => { const r = (EDIT_RANGE[kontext().frei] || {})[k]; return typeof r === "function" ? r(vals()) : r; };
 const EDIT = {};
-for (const [k, speed, lo, hi, reset] of [["vA", true, -80, 80], ["vL", true, 0, 80], ["vT", true, 0, 5], ["vP", true, 0, 5], ["xA", false, -5000, 50000, true], ["xL", false, -5000, 50000, true], ["xB", false, -500, 100, true], ["xBo", false, -200, 200, true], ["xS", false, -200, 200, true], ["Lb", false, 2, 500, true], ["B", false, 5, 300, true]]){
+for (const [k, speed, lo, hi, reset] of [["vA", true, -80, 80], ["vL", true, 0, 80], ["vT", true, 0, 5], ["vP", true, 0, 5], ["xA", false, -5000, 50000, true], ["xL", false, -5000, 50000, true], ["xB", false, -500, 100, true], ["xBo", false, -200, 200, true], ["xS", false, -200, 200, true], ["Lb", false, 2, 500, true], ["B", false, 5, 300, true], ["H", false, 1, 3000, true]]){
   EDIT[k] = { speed, get:F => F[k], set:(F, x) => { F[k] = x; if (reset) S.t = 0; },
     get lab(){ const fr = kontext().frei; return ((!gleich() && EDIT_LAB[fr + "G"]) || EDIT_LAB[fr] || {})[k] || k; },
     get hint(){
@@ -2149,7 +2380,7 @@ cScene.addEventListener("pointerdown", ev => {
 function zoom(fac){
   if (!kontext().frei) return;
   const F = vals();
-  if (kontext().frei === "quer"){ // Zoom 1 = ganzer Weg im Bild; näher heran bis 2 m Bildbreite
+  if (["quer", "kran", "schirm"].includes(kontext().frei)){ // Zoom 1 = ganzer Weg im Bild; näher heran bis 2 m Bildbreite
     const fit = S.qFit || 100, nd = (F.D && F.D < fit ? F.D : fit) * fac;
     if (nd >= fit * 0.999) delete F.D; else F.D = Math.max(2, nd);
     S.t = Math.min(S.t, tEnd()); render(); return;
