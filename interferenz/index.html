@@ -115,6 +115,12 @@ button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
       <div class="scale"><span>1 µm</span><span>20 µm</span></div>
     </section>
     <section>
+      <div class="row"><h2>Spaltbreite d</h2><span class="val" id="dV"></span></div>
+      <input type="range" id="d" min="0.1" max="9" step="0.1" value="2">
+      <div class="scale"><span>0,1 µm</span><span id="dMax">9 µm</span></div>
+      <div class="note" style="margin-top:4px">Je breiter die Spalte, desto stärker nimmt die Helligkeit der Maxima zum Rand hin ab (Beugung am Einzelspalt).</div>
+    </section>
+    <section>
       <div class="row"><h2>Abstand Doppelspalt–Schirm e</h2><span class="val" id="eV"></span></div>
       <input type="range" id="e" min="1" max="5" step="0.1" value="3">
       <div class="scale"><span>1 m</span><span>5 m</span></div>
@@ -166,7 +172,7 @@ button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
     <section class="note">
       <h2>Hinweise zum Modell</h2>
       <p>Beim Gitter bezeichnet Δs den Gangunterschied zwischen benachbarten Spalten. Zwischen zwei Hauptmaxima liegen N − 2 schwache Nebenmaxima; je mehr Spalte, desto schärfer die Hauptmaxima.</p>
-      <p>Die beiden Spalte wirken als punktförmige, gleichphasige Quellen (Spaltbreite vernachlässigt).</p>
+      <p>Alle Spalte sind gleich breit (Spaltbreite d) und werden gleichphasig beleuchtet. Jeder Spalt beugt das Licht wie ein Einzelspalt: Seine Helligkeit fällt mit dem Winkel ab, I<sub>Einzel</sub> = (sin β / β)² mit β = π·d·sin α / λ. Diese Einhüllende begrenzt die Helligkeit der Maxima, deshalb ist das 0. Maximum am hellsten und die Maxima werden zum Rand hin schwächer. Fällt ein Maximum auf eine Nullstelle der Einhüllenden (d·sin α = λ), fehlt es.</p>
       <p>Die Darstellung ist nicht maßstabsgetreu: Der Schirm steht im Bild viel näher und die Wellenlänge ist stark vergrößert, damit die Wellenzüge gut sichtbar sind. Dadurch erscheinen die Winkel im Bild größer als in echt. Die Phasen, mit denen die Wellen am Schirm ankommen, stimmen trotzdem. Alle angezeigten Werte (α<sub>k</sub>, s<sub>k</sub>, Δs) sind mit dem echten Abstand e berechnet. Weil e ≫ b ist, gilt dort exakt Δs = b·sin α<sub>k</sub> und s<sub>k</sub> = e·tan α<sub>k</sub>.</p>
       <p>Die Wellen im Bild kommen am Schirm in genau der Phase an, die sie in Wirklichkeit dort haben. Das gilt auch für die Hintergrund-Wellenfelder (Momentanbild und Intensität).</p>
       <p>Ein Maximum k-ter Ordnung gibt es nur, wenn k·λ kleiner als b ist. Bei sehr kleinem b (z. B. 1 µm) entsteht deshalb nur noch das 1. Maximum. Liegt ein Maximum außerhalb des Bildes, mit dem Mausrad herauszoomen.</p>
@@ -178,7 +184,7 @@ button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
 "use strict";
 const $ = id => document.getElementById(id);
 const st = {
-  lam: 0.63, b: 10, e: 3,
+  lam: 0.63, b: 10, d: 2, e: 3,
   sel: { type: 'max', k: 1 },
   show: { box: true, rays: true, waves: true, crests: false, troughs: false, gang: true, help: true, max: true, min: true, intens: true },
   field: 'none', white: false, grating: false, N: 6, n100: false, playing: true, speed: 1, tau: 0, theme: 'dark'
@@ -269,11 +275,17 @@ function intensity(rs, L) {
   for (const r of rs) { c += Math.cos(k * r); s += Math.sin(k * r); }
   return (c * c + s * s) / (rs.length * rs.length);
 }
-// echte Intensität am Schirmpunkt y für die Wellenlänge L (µm)
+// Spaltbreite im Modell (höchstens 0,9·b) und Amplitude des Einzelspalts sin β / β mit β = π·d·sin α / λ (echter Winkel)
+const dEff = () => Math.min(st.d, 0.9 * st.b);
+function sincA(sa, L) {
+  const be = Math.PI * dEff() * sa / L;
+  return Math.abs(be) < 1e-9 ? 1 : Math.sin(be) / be;
+}
+// echte Intensität am Schirmpunkt y für die Wellenlänge L (µm): Gitterfaktor · Einhüllende des Einzelspalts
 function screenI(y, L) {
-  const ph = Math.PI * delta(y) / L, sn = Math.sin(ph), n = nSlits();
-  if (Math.abs(sn) < 1e-9) return 1;
-  return (Math.sin(n * ph) / (n * sn)) ** 2;
+  const ph = Math.PI * delta(y) / L, sn = Math.sin(ph), n = nSlits(), env = sincA(sinReal(y), L) ** 2;
+  if (Math.abs(sn) < 1e-9) return env;
+  return env * (Math.sin(n * ph) / (n * sn)) ** 2;
 }
 // Strahlen laufen im Bild geradlinig vom Spalt zum Schirmpunkt
 const rayPath = (y0, yP) => [[0, y0], [EW(), yP]];
@@ -385,7 +397,8 @@ function updateInfo() {
   const rows = [
     ['Winkel α<sub>k</sub>', `${fmt(Math.abs(al) * 180 / Math.PI, 2)}°`],
     ['Abstand s<sub>k</sub> auf dem Schirm', `${fmt(Math.abs(sReal(y)) * 100, 1)} cm`],
-    [st.grating ? 'Gangunterschied Δs<br>(benachbarte Spalte)' : 'Gangunterschied Δs', `${lamText(n)} = ${fmt(Math.abs(delta(y)) * 1000, 0)} nm`]
+    [st.grating ? 'Gangunterschied Δs<br>(benachbarte Spalte)' : 'Gangunterschied Δs', `${lamText(n)} = ${fmt(Math.abs(delta(y)) * 1000, 0)} nm`],
+    ['Intensität I / I<sub>0</sub>', `${fmt(screenI(y, L) * 100, 1)} %`]
   ];
   $('meas').innerHTML = rows.map(r => `<div>${r[0]}</div><div>${r[1]}</div>`).join('');
 }
@@ -395,12 +408,12 @@ let fieldCache = null;
 const fcan = document.createElement('canvas'), fctx = fcan.getContext('2d');
 function ensureField(kw) {
   // Rasterweite: fein genug, dass auch kurze Wellenlängen im Bild ohne Moiré erscheinen
-  const D = clamp(Math.floor(2 * Math.PI / kw * S / 4), 1, 3), sy = slitYs(), E = EW(), key = `${W}|${H}|${bW()}|${E}|${sy.length}|${S}|${X0}|${YC}|${kw}`;
+  const D = clamp(Math.floor(2 * Math.PI / kw * S / 4), 1, 3), sy = slitYs(), E = EW(), key = `${W}|${H}|${bW()}|${E}|${sy.length}|${S}|${X0}|${YC}|${kw}|${dEff()}|${mag()}`;
   if (fieldCache && fieldCache.key === key) return fieldCache;
   const fw = Math.ceil(W / D), fh = Math.ceil(H / D), n = fw * fh;
   // Summen Σcos(k·r), Σsin(k·r) je Bildpunkt; die einzelnen Wege nur bei wenigen Spalten speichern (für weißes Licht)
   const keep = sy.length <= 20, rs = keep ? sy.map(() => new Float32Array(n)) : null;
-  const sc = new Float32Array(n), ss = new Float32Array(n), inside = new Uint8Array(n);
+  const sc = new Float32Array(n), ss = new Float32Array(n), inside = new Uint8Array(n), sa = new Float32Array(n);
   for (let j = 0; j < fh; j++) for (let i = 0; i < fw; i++) {
     const x = ((i + 0.5) * D - X0) / S, y = (YC - (j + 0.5) * D) / S, id = j * fw + i;
     inside[id] = x >= 0 && x <= E ? 1 : 0;
@@ -409,16 +422,19 @@ function ensureField(kw) {
     // das der einzelnen Kreiswellen
     const rc = Math.hypot(x, y), c3 = rc > 0 ? (x / rc) ** 3 : 0;
     if (!inside[id]) continue;
+    sa[id] = rc > 0 ? y / rc / mag() : 0;   // echter sin α für die Einhüllende des Einzelspalts
+    // Amplitude des Einzelspalts für die eingestellte Wellenlänge
+    const A = sincA(sa[id], st.lam);
     let c = 0, sn = 0;
     for (let q = 0; q < sy.length; q++) {
       const r = Math.hypot(x, y - sy[q]) - sy[q] * sy[q] * c3 / (2 * E);
       if (keep) rs[q][id] = r;
       c += Math.cos(kw * r); sn += Math.sin(kw * r);
     }
-    sc[id] = c; ss[id] = sn;
+    sc[id] = c * A; ss[id] = sn * A;
   }
   fcan.width = fw; fcan.height = fh;
-  fieldCache = { key, D, fw, fh, rs, sc, ss, ns: sy.length, inside, img: fctx.createImageData(fw, fh) };
+  fieldCache = { key, D, fw, fh, rs, sc, ss, sa, ns: sy.length, inside, img: fctx.createImageData(fw, fh) };
   return fieldCache;
 }
 // ---------- Weißes Licht: Überlagerung der Intensitäten aller Wellenlängen ----------
@@ -435,7 +451,7 @@ function whiteColor(fnI, sp) {
 }
 let screenCache = null;
 function screenColors() {
-  const key = `${H}|${S}|${YC}|${st.b}|${st.e}|${nSlits()}|${bW()}`;
+  const key = `${H}|${S}|${YC}|${st.b}|${st.e}|${nSlits()}|${bW()}|${dEff()}`;
   if (screenCache && screenCache.key === key) return screenCache.cols;
   const sp = spectrum(5), cols = [];
   for (let py = 0; py <= H; py += 2) {
@@ -464,7 +480,7 @@ function drawField(rgb, kw, ph) {
       for (let i = 0; i < F.fw * F.fh; i++) {
         if (!F.inside[i]) continue;
         for (let q = 0; q < tmp.length; q++) tmp[q] = F.rs[q][i];
-        const c = whiteColor(l => intensity(tmp, l * mag() * bW() / st.b), sp), o = i * 4;
+        const c = whiteColor(l => intensity(tmp, l * mag() * bW() / st.b) * sincA(F.sa[i], l) ** 2, sp), o = i * 4;
         d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 200;
       }
       wfctx.putImageData(img, 0, 0); whiteFieldKey = F.key;
@@ -830,7 +846,8 @@ function drawOverlay() {
   const ys = (h - 16) / (2 * (ns + 0.2)), y0 = h / 2;
   octx.strokeStyle = Tm.faint; octx.lineWidth = 1;
   octx.beginPath(); octx.moveTo(0, y0); octx.lineTo(w, y0); octx.stroke();
-  const f = (rr, tt) => Math.sin(kw * rr - om * tt);
+  const A = Math.abs(sincA(sinReal(y), st.lam));   // Amplitude des Einzelspalts in Richtung P
+  const f = (rr, tt) => A * Math.sin(kw * rr - om * tt);
   const trace = (fn, col, lw, dash) => {
     octx.strokeStyle = col; octx.lineWidth = lw; octx.setLineDash(dash || []);
     octx.beginPath();
@@ -858,13 +875,21 @@ function refreshLabels() {
   $('lamV').textContent = `${Math.round(st.lam * 1000)} nm`;
   $('sw').style.background = wc;
   $('bV').textContent = `${fmt(st.b, 2)} µm`;
+  $('dV').textContent = `${fmt(dEff(), 1)} µm`;
   $('eV').textContent = `${fmt(st.e, 1)} m`;
   $('spV').textContent = `${fmt(st.speed, 1)}×`;
   $('lg1').style.borderTopColor = wc; $('lg2').style.borderTopColor = wc;
   $('lg3').style.borderTopColor = theme().ink;
 }
 $('lam').addEventListener('input', e => { st.lam = +e.target.value / 1000; screenCache = null; refreshLabels(); recompute(); });
-$('b').addEventListener('input', e => { st.b = +e.target.value; fieldCache = null; screenCache = null; ensureVisible(); refreshLabels(); recompute(); });
+// Spaltbreite höchstens 0,9·b: Reglerende folgt dem Spaltabstand
+function setDMax() {
+  const mx = Math.max(0.1, Math.floor(9 * st.b) / 10);
+  $('d').max = mx; $('dMax').textContent = `${fmt(mx, 1)} µm`;
+  $('d').value = dEff();
+}
+$('d').addEventListener('input', e => { st.d = +e.target.value; fieldCache = null; screenCache = null; whiteFieldKey = null; refreshLabels(); recompute(); });
+$('b').addEventListener('input', e => { st.b = +e.target.value; setDMax(); fieldCache = null; screenCache = null; ensureVisible(); refreshLabels(); recompute(); });
 $('e').addEventListener('input', ev => {
   st.e = +ev.target.value;
   ensureVisible();
@@ -979,7 +1004,7 @@ function frame(now) {
   draw(); drawOverlay();
   requestAnimationFrame(frame);
 }
-setSpectrum(); refreshLabels();
+setSpectrum(); setDMax(); refreshLabels();
 new ResizeObserver(layout).observe(cv);
 layout();
 requestAnimationFrame(frame);
