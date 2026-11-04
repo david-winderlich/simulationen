@@ -188,10 +188,9 @@ section{min-width:0}
       <div class="chips" id="givenChips"></div>
     </section>
 
-    <section>
+    <section id="elecBox">
       <h2>Anzeigen</h2>
       <label class="sw"><input type="checkbox" id="tElec" checked><span class="track"></span>Elektronenbewegung zeigen</label>
-      <p class="note">Die Elektronen erscheinen, sobald die Polung bekannt ist (gegeben, gelöst oder im Modus Erkunden).</p>
     </section>
 
     <section>
@@ -1425,12 +1424,14 @@ window.__v3init = function(){
       var GS = MF.GS, r = MF.coilRange(c), n = Math.round((r[1] - r[0]) / TAU * 40), pts2 = [];
       for (var i2 = 0; i2 <= n; i2++) { var q2 = MF.coilPt(c, r[0] + (r[1] - r[0]) * i2 / n); pts2.push(W(c, q2.u, q2.v, q2.w)); }
       root.add(tube(pts2, 0.06, mWire, false));
-      MF.coilEnds(c).forEach(function(e, k){
-        var a = W(c, e.u, e.sv * GS.R, 0), b = W(c, e.u, e.sv * GS.lead, 0);
-        root.add(bar(a, b, 0.06, mWire));
-        var tm = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), mTerm); tm.position.copy(b); root.add(tm);
-        var s = vis.el == null ? '?' : ((vis.el * (k === 0 ? 1 : -1) > 0) ? '−' : '+');
-        var bd = signBadge(s, vis.marks.el === 'bad'); bd.position.copy(W(c, e.u - e.d * 30, e.sv * GS.lead, 0)); root.add(bd);
+      MF.coilEnds(c).forEach(function(e){
+        var lp = e.pts.map(function(q){ return W(c, q.u, q.v, q.w); });
+        var bend = lp.slice(0, lp.length - 1);
+        root.add(tube(bend, 0.06, mWire, false));
+        root.add(bar(lp[lp.length - 2], lp[lp.length - 1], 0.06, mWire));
+        var tm = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), mTerm); tm.position.copy(lp[lp.length - 1]); root.add(tm);
+        var s = vis.el == null ? '?' : ((vis.el * (e.k === 0 ? 1 : -1) > 0) ? '−' : '+');
+        var bd = signBadge(s, vis.marks.el === 'bad'); bd.position.copy(W(c, e.term.u + e.tau * 32, e.term.v, e.term.w)); root.add(bd);
       });
       [-1, 1].forEach(function(d){
         var k = vis.mag == null ? '?' : (vis.mag * d > 0 ? 'N' : 'S');
@@ -1438,27 +1439,27 @@ window.__v3init = function(){
         var bd = badge(k, fillc, k === '?' ? css('--unk', '#8a94a6') : '#ffffff', 0.5, k === '?');
         bd.position.copy(W(c, d * (GS.L / 2 + 44), 0, 0)); root.add(bd);
       });
-      // Feldlinien: geschlossene Schleifen in sechs Halbebenen um die Achse
-      var L = GS.L, xin = L / 2 + 8;
-      function bez(p0, p1, p2, p3, t){ var s = 1 - t; return s*s*s*p0 + 3*s*s*t*p1 + 3*s*t*t*p2 + t*t*t*p3; }
-      GS.loops.forEach(function(lp){
-        var vi = lp.vi * GS.R, H = GS.R + lp.H, A = L / 2 + lp.A, path = [], j;
-        for (j = 0; j < 10; j++) path.push([-xin + 2 * xin * j / 10, vi]);
-        for (j = 0; j < 12; j++) { var t = j / 12; path.push([bez(xin, A, A, xin, t), bez(vi, vi, H, H, t)]); }
-        for (j = 0; j < 10; j++) path.push([xin - 2 * xin * j / 10, H]);
-        for (j = 0; j < 12; j++) { var t2 = j / 12; path.push([bez(-xin, -A, -A, -xin, t2), bez(H, H, vi, vi, t2)]); }
-        for (var az = 0; az < 6; az++) {
-          var al = az * TAU / 6 + Math.PI / 2, ca = Math.cos(al), sa = Math.sin(al);
-          root.add(tube(path.map(function(p){ return W(c, p[0], p[1] * ca, p[1] * sa); }), 0.011, mFl, true));
-          if (vis.feld != null) [-L / 4, L / 4].forEach(function(uu){
-            var p = W(c, uu, H * ca, H * sa), q = W(c, uu - vis.feld, H * ca, H * sa);
-            root.add(cone(p, q.sub(p), mFl));
-          });
-        }
+      // Feldlinien (berechnet, wie in 2D) in vier Halbebenen um die Achse
+      var F = MF.coilField(), AZ = [0.25, 0.75, 1.25, 1.75].map(function(x){ return x * Math.PI; });
+      AZ.forEach(function(al){
+        var ca = Math.cos(al), sa = Math.sin(al);
+        F.clipped.forEach(function(cl){
+          if (cl.sv < 0 || cl.pts.length < 2) return;
+          var pts = cl.pts.map(function(p){ return W(c, p[0], p[1] * ca, p[1] * sa); });
+          var closed = pts[0].distanceTo(pts[pts.length - 1]) < 0.03;
+          if (closed) pts.pop();
+          root.add(tube(pts, 0.011, mFl, closed));
+        });
+        if (vis.feld != null) F.runs.forEach(function(rn){
+          if (rn.sv < 0 || rn.inner || MF.runLen(rn.pts) <= 70) return;
+          var m = MF.runMid(rn.pts), p = W(c, m.p[0], m.p[1] * ca, m.p[1] * sa);
+          var q = W(c, m.p[0] + vis.feld * m.d[0], (m.p[1] + vis.feld * m.d[1]) * ca, (m.p[1] + vis.feld * m.d[1]) * sa);
+          root.add(cone(p, q.sub(p), mFl));
+        });
       });
-      root.add(bar(W(c, -L / 2 - GS.axis, 0, 0), W(c, L / 2 + GS.axis, 0, 0), 0.011, mFl));
+      root.add(bar(W(c, -F.BU, 0, 0), W(c, F.BU, 0, 0), 0.011, mFl));
       if (vis.feld != null) [-1, 1].forEach(function(d){
-        var p = W(c, d * (L / 2 + GS.axis - 22), 0, 0), q = W(c, d * (L / 2 + GS.axis - 22) + vis.feld, 0, 0);
+        var p = W(c, d * (F.BU - 30), 0, 0), q = W(c, d * (F.BU - 30) + vis.feld, 0, 0);
         root.add(cone(p, q.sub(p), mFl));
       });
       if (vis.elec) {
@@ -1529,13 +1530,13 @@ var $ = function(id){ return document.getElementById(id); };
 var svg = $('pSvg'), ctrl = $('pCtrl');
 var K = 0.3, KS = 0.16, C0 = 250, TAU = Math.PI * 2;
 var GL = { half:175, R:80, rings:[-120, -60, 0, 60, 120], term:192 };
-var GS = { L:270, R:72, N:5, lead:152, loops:[{ vi:0.58, H:22, A:40 }, { vi:0.27, H:48, A:70 }], axis:112 };
+var GS = { L:270, R:72, N:5, lead:150 };
 
 /* ---------- Zustand ---------- */
 var st = {
   obj:'spule', dim:'2d', mode:'practice', elec:true,
   ex:{ leiter:{ type:'leiter', orient:'v', e:1 },
-       spule:{ type:'spule', orient:'h', h:1, s0:0, x:0, e:1 } },
+       spule:{ type:'spule', orient:'h', h:1, s0:0, x:0, T:1, e:1 } },
   given:{ leiter:'rand', spule:'rand' },
   task:{ leiter:null, spule:null },
   n:0, ok:0
@@ -1560,9 +1561,115 @@ function coilPt(c, phi){
   var r = coilRange(c), t = (phi - r[0]) / (r[1] - r[0]);
   return { u:-GS.L / 2 + GS.L * t, v:GS.R * Math.cos(phi), w:c.h * GS.R * Math.sin(phi) };
 }
+/* Zuleitungen: verlassen die letzte Windung tangential (kein Knick), biegen zur Anschlussseite T um
+   und laufen dann gerade zum Anschluss. Beide Anschlüsse liegen immer auf derselben Seite (T). */
 function coilEnds(c){
-  var r = coilRange(c);
-  return [{ u:-GS.L / 2, sv:Math.round(Math.cos(r[0])), phi:r[0], d:1 }, { u:GS.L / 2, sv:Math.round(Math.cos(r[1])), phi:r[1], d:-1 }];
+  var r = coilRange(c), pitch = GS.L / (r[1] - r[0]), rr = 22;
+  return [0, 1].map(function(k){
+    var phi = r[k], tau = k ? 1 : -1, sv = Math.round(Math.cos(phi)), sw = c.h * sv * tau, ue = tau * GS.L / 2, pts = [];
+    for (var i = 0; i <= 14; i++) {
+      var t = Math.PI / 2 * i / 14;
+      pts.push({ u:ue + tau * (pitch * rr / GS.R * Math.sin(t) + 5 * (1 - Math.cos(2 * t))), v:sv * GS.R + c.T * rr * (1 - Math.cos(t)), w:sw * rr * Math.sin(t) });
+    }
+    var last = pts[pts.length - 1];
+    pts.push({ u:last.u, v:c.T * GS.lead, w:last.w });
+    return { k:k, tau:tau, sv:sv, front:sw > 0, pts:pts, term:pts[pts.length - 1] };
+  });
+}
+
+/* Feldlinien einer Spule (Länge L, Radius R) im Meridianschnitt (u entlang der Achse, p = Abstand von der Achse).
+   Modell: M dicht liegende Kreisströme (Feld eines Kreisstroms über vollständige elliptische Integrale),
+   Integration der Feldlinien mit Runge-Kutta. Ergebnis: rechte Hälften der geschlossenen Linien, Start in der Mitte innen. */
+function fieldLines(L, R, starts, opt){
+  opt = opt || {};
+  var M = 160, us = [];
+  for (var i = 0; i < M; i++) us.push(-L / 2 + L * (i + 0.5) / M);
+  function KE(m){   // vollständige elliptische Integrale K(m), E(m), m = k²
+    var a = 1, b = Math.sqrt(1 - m), c2 = m, s = 0.5 * c2, p2 = 1;
+    for (var n = 0; n < 20 && Math.abs(a - b) > 1e-12; n++) {
+      var an = (a + b) / 2, bn = Math.sqrt(a * b), cn = (a - b) / 2;
+      p2 *= 2; s += p2 * cn * cn / 2; a = an; b = bn;
+    }
+    var K = Math.PI / (2 * a); return [K, K * (1 - s)];
+  }
+  function B(u, p){
+    var bu = 0, bp = 0, a = R, ap = Math.max(Math.abs(p), 1e-6);
+    for (var i = 0; i < M; i++) {
+      var z = u - us[i], q = (a + ap) * (a + ap) + z * z, d = (a - ap) * (a - ap) + z * z + 36, m = 4 * a * ap / q;
+      var ke = KE(Math.min(m, 1 - 1e-12)), sq = Math.sqrt(q);
+      bu += (ke[0] + (a * a - ap * ap - z * z) / d * ke[1]) / sq;
+      bp += z / (ap * sq) * (-ke[0] + (a * a + ap * ap + z * z) / d * ke[1]);
+    }
+    return [bu, p < 0 ? -bp : bp];
+  }
+  function dir(u, p){ var b = B(u, p), n = Math.hypot(b[0], b[1]) || 1; return [b[0] / n, b[1] / n]; }
+  var lim = opt.limit || 900;
+  return starts.map(function(p0){
+    var u = 0, p = p0, pts = [[u, p]], out = false;
+    for (var n = 0; n < 4000; n++) {
+      var h = Math.abs(u) < L / 2 + 20 && p < R + 20 ? 2 : 4;
+      var k1 = dir(u, p), k2 = dir(u + h/2*k1[0], p + h/2*k1[1]), k3 = dir(u + h/2*k2[0], p + h/2*k2[1]), k4 = dir(u + h*k3[0], p + h*k3[1]);
+      var nu = u + h/6*(k1[0] + 2*k2[0] + 2*k3[0] + k4[0]), np = p + h/6*(k1[1] + 2*k2[1] + 2*k3[1] + k4[1]);
+      if (out && nu <= 0) { pts.push([0, p + (np - p) * (u / (u - nu))]); return { pts:pts, closed:true }; }
+      u = nu; p = np; pts.push([u, p]);
+      if (u > L / 2 || p > R + 3) out = true;
+      if (u > lim || p > lim) return { pts:pts, closed:false };
+    }
+    return { pts:pts, closed:false };
+  });
+}
+
+/* Feldlinien der Spule einmal berechnen, auf den Bildausschnitt zuschneiden und in Innen- und Außenstücke teilen.
+   Reihenfolge der Punkte = Feldrichtung, wenn das Feld innen in +u-Richtung zeigt. */
+var FL = null;
+function coilField(){
+  if (FL) return FL;
+  var L = GS.L, R = GS.R, BU = L / 2 + 125, BV = R + 100;
+  var halves = fieldLines(L, R, [0.97, 0.9, 0.8, 0.62, 0.38].map(function(x){ return x * R; }), { limit:900 });
+  var lines = [];
+  halves.forEach(function(h){
+    var Rh = h.pts, Lh = Rh.slice().reverse().map(function(p){ return [-p[0], p[1]]; });
+    var full = h.closed ? Rh.concat(Lh.slice(1)) : Lh.concat(Rh.slice(1));
+    [1, -1].forEach(function(sv){ lines.push({ sv:sv, pts:full.map(function(p){ return [p[0], sv * p[1]]; }) }); });
+  });
+  function clipSeg(a, b){   // Liang-Barsky
+    var t0 = 0, t1 = 1, dx = b[0] - a[0], dy = b[1] - a[1];
+    var pq = [[-dx, a[0] + BU], [dx, BU - a[0]], [-dy, a[1] + BV], [dy, BV - a[1]]];
+    for (var i = 0; i < 4; i++) {
+      var pp = pq[i][0], q = pq[i][1];
+      if (pp === 0) { if (q < 0) return null; continue; }
+      var t = q / pp;
+      if (pp < 0) { if (t > t1) return null; if (t > t0) t0 = t; } else { if (t < t0) return null; if (t < t1) t1 = t; }
+    }
+    return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy], t0 > 0, t1 < 1];
+  }
+  var runs = [], clipped = [];
+  lines.forEach(function(ln){
+    var cur = null, curIn = null, cl = null, pts = ln.pts;
+    for (var i = 0; i < pts.length - 1; i++) {
+      var sg = clipSeg(pts[i], pts[i + 1]);
+      if (!sg) { cur = null; cl = null; continue; }
+      var mu = (sg[0][0] + sg[1][0]) / 2, mv = (sg[0][1] + sg[1][1]) / 2;
+      var inn = Math.abs(mu) < L / 2 && Math.abs(mv) < R;
+      if (!cur || curIn !== inn || sg[2]) { cur = { inner:inn, sv:ln.sv, pts:[sg[0]] }; runs.push(cur); curIn = inn; }
+      cur.pts.push(sg[1]);
+      if (!cl || sg[2]) { cl = { sv:ln.sv, pts:[sg[0]] }; clipped.push(cl); }
+      cl.pts.push(sg[1]);
+      if (sg[3]) { cur = null; cl = null; }
+    }
+  });
+  FL = { runs:runs, clipped:clipped, BU:BU, BV:BV };
+  return FL;
+}
+function runLen(pts){ var s = 0; for (var i = 1; i < pts.length; i++) s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return s; }
+function runMid(pts){   // Punkt und Richtung in der Mitte der Bogenlänge
+  var half = runLen(pts) / 2, s = 0;
+  for (var i = 1; i < pts.length; i++) {
+    var d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    if (s + d >= half) { var t = (half - s) / d; return { p:[pts[i - 1][0] + t * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + t * (pts[i][1] - pts[i - 1][1])], d:[(pts[i][0] - pts[i - 1][0]) / d, (pts[i][1] - pts[i - 1][1]) / d] }; }
+    s += d;
+  }
+  return null;
 }
 
 /* ---------- Abbildung auf den Bildschirm ---------- */
@@ -1659,50 +1766,38 @@ function drawSpule(c, vis){
   function wire(list, o, f, wo, wf){
     return list.map(function(pts){ var d = pathOf(pts); return '<path d="' + d + '"' + sty(o, wo) + '/><path d="' + d + '"' + sty(f, wf) + '/>'; }).join('');
   }
-  // Zuleitungen: Farbe wie das anschließende Windungsstück
+  // Zuleitungen: Farbe wie das anschließende Windungsstück (vorn hell, hinten dunkel)
   var ends = coilEnds(c), leadsB = '', leadsF = '', terms = '';
-  ends.forEach(function(e, k){
-    var front = c.h * Math.sin(e.phi + e.d * 1e-3) > 0;
-    var a = P(c, e.u, e.sv * R, 0), b = P(c, e.u, e.sv * GS.lead, 0);
-    var d = 'M' + f1(a[0]) + ' ' + f1(a[1]) + ' L' + f1(b[0]) + ' ' + f1(b[1]);
-    var s = front ? '<path d="' + d + '"' + sty('var(--wire-fo)', 15) + '/><path d="' + d + '"' + sty('var(--wire-f)', 10) + '/>'
-                  : '<path d="' + d + '"' + sty('var(--wire-bo)', 15) + '/><path d="' + d + '"' + sty('var(--wire-b)', 10) + '/>';
-    if (front) leadsF += s; else leadsB += s;
-    var l = P(c, e.u - e.d * 26, e.sv * GS.lead, 0);
-    var sg = vis.el == null ? '?' : ((vis.el * (k === 0 ? 1 : -1) > 0) ? '−' : '+');   // el = +1: Elektronen vom Anfang (−u-Ende) zum Ende
+  ends.forEach(function(e){
+    var d = pathOf(e.pts.map(function(q){ return P(c, q.u, q.v, q.w); }));
+    var s = e.front ? '<path d="' + d + '"' + sty('var(--wire-fo)', 16) + '/><path d="' + d + '"' + sty('var(--wire-f)', 11) + '/>'
+                    : '<path d="' + d + '"' + sty('var(--wire-bo)', 15) + '/><path d="' + d + '"' + sty('var(--wire-b)', 10) + '/>';
+    if (e.front) leadsF += s; else leadsB += s;
+    var b = P(c, e.term.u, e.term.v, e.term.w), l = P(c, e.term.u + e.tau * 26, e.term.v, e.term.w);
+    var sg = vis.el == null ? '?' : ((vis.el * (e.k === 0 ? 1 : -1) > 0) ? '−' : '+');   // el = +1: Elektronen vom Anfang (−u-Ende) zum Ende
     terms += terminal(b[0], b[1]) + sign(l[0], l[1], sg, vis.marks.el === 'bad' ? 'var(--bad)' : null) + hitCircle(l[0], l[1], 20) + hitCircle(b[0], b[1], 16);
   });
-  // Feldlinien: geschlossene Schleifen aus Innenlinie und Außenbogen
-  var inner = '', outer = '', hits = '', arrows = '';
-  var xin = L / 2 + 8;
-  [1, -1].forEach(function(sv){
-    GS.loops.forEach(function(lp){
-      var vi = sv * lp.vi * R, H = sv * (R + lp.H), A = L / 2 + lp.A;
-      function Q(u, v){ return P(c, u, v, 0); }
-      var a1 = Q(-xin, vi), a2 = Q(xin, vi);
-      inner += '<path d="M' + f1(a1[0]) + ' ' + f1(a1[1]) + ' L' + f1(a2[0]) + ' ' + f1(a2[1]) + '"' + sty(flc, 2.6) + '/>';
-      var c1 = Q(A, vi), c2 = Q(A, H), e1 = Q(xin, H), e2 = Q(-xin, H), c3 = Q(-A, H), c4 = Q(-A, vi);
-      var d = 'M' + f1(a2[0]) + ' ' + f1(a2[1]) + ' C' + f1(c1[0]) + ' ' + f1(c1[1]) + ' ' + f1(c2[0]) + ' ' + f1(c2[1]) + ' ' + f1(e1[0]) + ' ' + f1(e1[1]) +
-              ' L' + f1(e2[0]) + ' ' + f1(e2[1]) + ' C' + f1(c3[0]) + ' ' + f1(c3[1]) + ' ' + f1(c4[0]) + ' ' + f1(c4[1]) + ' ' + f1(a1[0]) + ' ' + f1(a1[1]);
-      outer += '<path d="' + d + '"' + sty(flc, 2.6) + '/>';
-      hits += hitPath(d, 16);
-      if (vis.feld != null) {   // außen von N nach S, also entgegen dem Feld im Inneren
-        [-L / 4, L / 4].forEach(function(uu){
-          var p0 = Q(uu, H), p1 = Q(uu - vis.feld, H);
-          arrows += head(p0[0], p0[1], p1[0] - p0[0], p1[1] - p0[1], flc, 8);
-        });
-      }
-    });
+  // Feldlinien (berechnet): Innenstücke liegen zwischen hinteren und vorderen Windungen
+  var F = coilField(), inner = '', outer = '', hits = '', arrows = '';
+  F.runs.forEach(function(rn){
+    var d = pathOf(rn.pts.map(function(q){ return P(c, q[0], q[1], 0); }));
+    if (rn.inner) { inner += '<path d="' + d + '"' + sty(flc, 2.6) + '/>'; return; }
+    outer += '<path d="' + d + '"' + sty(flc, 2.6) + '/>';
+    hits += hitPath(d, 16);
+    if (vis.feld != null && runLen(rn.pts) > 70) {
+      var m = runMid(rn.pts), p0 = P(c, m.p[0], m.p[1], 0), p1 = P(c, m.p[0] + vis.feld * m.d[0], m.p[1] + vis.feld * m.d[1], 0);
+      arrows += head(p0[0], p0[1], p1[0] - p0[0], p1[1] - p0[1], flc, 8);
+    }
   });
-  // Mittellinie (Achse), ragt an beiden Enden heraus
-  var m1 = P(c, -L / 2 - GS.axis, 0, 0), m2 = P(c, L / 2 + GS.axis, 0, 0);
+  // Mittellinie (Achse)
+  var m1 = P(c, -F.BU, 0, 0), m2 = P(c, F.BU, 0, 0);
   var axisL = '<path d="M' + f1(m1[0]) + ' ' + f1(m1[1]) + ' L' + f1(m2[0]) + ' ' + f1(m2[1]) + '"' + sty(flc, 2.6) + '/>';
   if (vis.feld != null) [-1, 1].forEach(function(d){
-    var p0 = P(c, d * (L / 2 + GS.axis - 22), 0, 0), p1 = P(c, d * (L / 2 + GS.axis - 22) + vis.feld, 0, 0);
+    var p0 = P(c, d * (F.BU - 30), 0, 0), p1 = P(c, d * (F.BU - 30) + vis.feld, 0, 0);
     arrows += head(p0[0], p0[1], p1[0] - p0[0], p1[1] - p0[1], flc, 8);
   });
   out.push(hot('feld', axisL, 'Feldrichtung umkehren', vis.hot.feld));
-  out.push(leadsB + wire(runs.b, 'var(--wire-bo)', 'var(--wire-b)', 15, 10));
+  out.push(wire(runs.b, 'var(--wire-bo)', 'var(--wire-b)', 15, 10) + leadsB);
   out.push('<g id="eBack"></g>');
   out.push(hot('feld', inner, 'Feldrichtung umkehren', vis.hot.feld));
   out.push(leadsF + wire(runs.f, 'var(--wire-fo)', 'var(--wire-f)', 16, 11));
@@ -1807,7 +1902,7 @@ function tipText(obj, task){
 /* ---------- Aufgaben ---------- */
 function randomCfg(obj){
   if (obj === 'leiter') return { type:'leiter', orient:rnd(['v', 'h']), e:sgn() };
-  return { type:'spule', orient:rnd(['h', 'h', 'v']), h:sgn(), s0:rnd([0, 1]), x:rnd([0, 1]), e:sgn() };
+  return { type:'spule', orient:rnd(['h', 'h', 'v']), h:sgn(), s0:rnd([0, 1]), x:rnd([0, 1]), T:sgn(), e:sgn() };
 }
 function newTask(obj){
   obj = obj || st.obj;
@@ -1835,8 +1930,7 @@ function currentScene(){
     if (q === task.given || task.done) v[q] = tr[q];
     else { v[q] = task.user[q]; v.hot[q] = true; }
   });
-  var polQ = obj === 'leiter' ? 'pol' : 'el';
-  v.elec = st.elec && (task.given === polQ || task.done);
+  v.elec = false;   // im Modus Üben keine Elektronen (David)
   return { c:task.c, vis:v };
 }
 function draw(){
@@ -1959,7 +2053,7 @@ ctrl.addEventListener('click', function(ev){
     var c = st.ex[st.obj];
     if (b.dataset.k) { c[b.dataset.k] = b.dataset.k === 'orient' ? b.dataset.v : Number(b.dataset.v); }
     else if (b.dataset.x === 'e') c.e *= -1;
-    else if (b.dataset.x === 'leads') { var i = (c.s0 * 2 + c.x + 1) % 4; c.s0 = i >> 1; c.x = i & 1; }
+    else if (b.dataset.x === 'leads') { var i = (c.s0 * 4 + c.x * 2 + (c.T > 0 ? 1 : 0) + 1) % 8; c.s0 = i >> 2; c.x = (i >> 1) & 1; c.T = i & 1 ? 1 : -1; }
     else if (b.dataset.x === 'rand') st.ex[st.obj] = randomCfg(st.obj);
     render(); return;
   }
@@ -1992,6 +2086,7 @@ function setMode(m){
   $('mPractice').setAttribute('aria-pressed', String(m === 'practice'));
   $('mExplore').setAttribute('aria-pressed', String(m === 'explore'));
   $('givenBox').hidden = $('scoreBox').hidden = m !== 'practice';
+  $('elecBox').hidden = m === 'practice';
   $('mNote').textContent = m === 'practice'
     ? (st.obj === 'leiter' ? 'Eine Angabe ist gegeben (Feldlinien oder Polung). Bestimme die andere.' : 'Eine Angabe ist gegeben. Bestimme die beiden anderen: Feldlinien außen, Nord- und Südpol, Plus- und Minuspol.')
     : 'Stelle Lage, Polung' + (st.obj === 'spule' ? ', Wickelsinn und Anschlüsse' : '') + ' selbst ein und beobachte das Magnetfeld. Klicks in die Zeichnung kehren die Polung um.';
@@ -2043,7 +2138,7 @@ $('theme').addEventListener('click', function(){
 });
 
 window.__mf = { st:st, truth:truth, render:render, draw:draw, newTask:newTask, setObj:setObj, setMode:setMode, setDim:setDim, check:check, flipQ:flipQ,
-                coilPt:coilPt, coilRange:coilRange, coilEnds:coilEnds, GL:GL, GS:GS, K:K, currentScene:currentScene, explain:explain };
+                coilPt:coilPt, coilRange:coilRange, coilEnds:coilEnds, coilField:coilField, runLen:runLen, runMid:runMid, GL:GL, GS:GS, K:K, currentScene:currentScene, explain:explain };
 var so = null, sm = null;
 try { so = localStorage.getItem('magnetfelder-form'); sm = localStorage.getItem('magnetfelder-modus'); } catch (e) {}
 st.mode = sm === 'explore' ? 'explore' : 'practice';
