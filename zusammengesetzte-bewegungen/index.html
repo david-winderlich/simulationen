@@ -1558,9 +1558,9 @@ function cam2d(w, h, R, o){
   if (fo){ // mitfahrende Kamera: Körper waagerecht in der Bildmitte, senkrecht im Bild halten
     if (fo.x !== undefined) ox = padL + Ws / 2 - fo.x * sc;
     if (fo.y !== undefined) oy = top + 0.5 * Hs + fo.y * sc;
-  }
+  } else { ox += (F.qx || 0) * sc; oy += (F.qy || 0) * sc; } // Kamera am Ufer/Boden: Bild mit der Maus verschoben (in m)
   const X = x => ox + x * sc, Y = y => oy - y * sc, wx = px => (px - ox) / sc, wy = py => (oy - py) / sc;
-  S.frame = { sc };
+  S.frame = { sc }; S.pan2d = !fo ? { wx, wy, cx:padL + Ws / 2, cy:top + Hs / 2 } : null;
   return { sc, X, Y, wx, wy, padL, padR, top, bot, Ws, Hs, D:Ws / sc, v0:wx(padL), xL:wx(0), xR:wx(w), yT:wy(R.y), yB:wy(h) };
 }
 function axSteps(h, R, cam){
@@ -1579,6 +1579,8 @@ function grid2d(ctx, w, h, R, cam){
 function axes2d(ctx, w, h, R, cam){
   const { X, Y, wy, sc, padL } = cam;
   drawRuler(ctx, w, h, { D:cam.D, sc, v0:cam.v0, padL, X, minLab:padL + 22 });
+  const F = vals();
+  if (S.pan2d && (F.qx || F.qy)) bubble(ctx, "⟲ Bild zurück", w - 196, h - 56, C.fg, "panReset", "right", 12);
   const ax = 30, { yTop, yBot, ys:step } = axSteps(h, R, cam);
   line(ctx, ax, yTop, ax, yBot, C.muted, 1);
   const dg = step < 0.1 ? 2 : step < 1 ? 1 : 0;
@@ -1933,9 +1935,10 @@ function drawSchirm(ctx, w, h){
 }
 function draw2d(ctx, w, h){
   const fr2 = kontext().frei;
-  if (fr2 === "quer") return drawQuer(ctx, w, h);
-  if (fr2 === "kran") return drawKran(ctx, w, h);
-  if (fr2 === "schirm") return drawSchirm(ctx, w, h);
+  const QD = { quer:drawQuer, kran:drawKran, schirm:drawSchirm }[fr2];
+  if (QD){ // verschiebbares Bild: nichts über den oberen Szenenrand hinaus zeichnen
+    const Rq = sceneRect(w, h); ctx.save(); ctx.beginPath(); ctx.rect(0, Rq.y, w, h - Rq.y); ctx.clip(); QD(ctx, w, h); ctx.restore(); return;
+  }
   const k = kontext(), m = kin(), R = sceneRect(w, h);
   let padT, padB, padL = 30, padR = 30;
   if (k.szene === "fluss2d"){ padT = 56; padB = 46; }
@@ -2216,9 +2219,9 @@ const FREI_NOTE = {
   strasseG:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Unter „Fahrbahn“ fahren sie getrennt aneinander vorbei oder auf derselben Fahrbahn ineinander. Mit dem Mausrad (oder + und −) zoomst du bis auf 2 m heran; steht die Kamera an der Straße, zeigt das Bild dann den Treffpunkt, und die Fahrzeuge kommen von außerhalb ins Bild. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren.",
   strasse:"Geschwindigkeiten von Pkw und Lkw (gegenüber der Straße) und beide Startpunkte stellst du direkt in der Szene ein: Wert anklicken. Vor dem Start kannst du die Fahrzeuge auch verschieben. Mit dem Mausrad (oder + und − unten rechts) zoomst du; fährt ein Fahrzeug rechts aus dem Bild, fährt das Bild mit. Alle Größen sind maßstabsgetreu, die Leitpfosten stehen alle 50 m. Unter „Kamera“ kannst du mit dem Pkw oder dem Lkw mitfahren: Dann steht dieses Fahrzeug in der Bildmitte still und alles andere zieht vorbei.",
   fluss:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, bis 2,5 m/s) und die Strömung v₂ (gegenüber dem Ufer, bis 5 m/s) stellst du direkt in der Szene ein: Wert anklicken. Die Boje treibt mit der Strömung; ihren Startpunkt kannst du anklicken oder die Boje vor dem Start verschieben. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Mit dem Mausrad (oder + und −) zoomst du. Der Schwimmer ist maßstabsgetreu, die Laufzeit beträgt 60 s (unter „Ablauf“ auf die Endzeit klicken, um sie zu ändern).",
-  quer:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, quer zum Fluss), die Strömung v₂ (gegenüber dem Ufer) und die Flussbreite stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x, längs des Flusses) und Ordinate (y, quer) sind in Metern bemaßt, der Ursprung liegt am Startpunkt. Die Boje startet am Startpunkt und treibt mit der Strömung. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei unten links. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Die Laufzeit reicht bis zum anderen Ufer.",
-  kran:"Die Geschwindigkeit der Laufkatze v₂ (gegenüber dem Boden), das Absenken v₁ (gegenüber der Laufkatze) die Starthöhe der Last und die Länge des Auslegers stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x) und Ordinate (y, Höhe über dem Boden) sind in Metern bemaßt. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei oben links. Unter „Kamera“ steht die Kamera am Boden oder fährt mit der Laufkatze oder der Last mit. Am Auslegerende hält die Laufkatze an, dann sinkt die Last nur noch senkrecht. Alles ist maßstabsgetreu.",
-  schirm:"Den Wind v₂ (gegenüber dem Boden), das Sinken v₁ (gegenüber der Luft) und die Starthöhe stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x) und Ordinate (y, Höhe über dem Boden) sind in Metern bemaßt. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei oben links. Unter „Kamera“ steht die Kamera am Boden oder fährt mit der Kiste mit. Der Schirm ist etwa 8 m breit, die Kiste 1,6 m (bei kleinem Maßstab etwas größer gezeichnet, damit man sie erkennt).",
+  quer:"Die Schwimmgeschwindigkeit v₁ (gegenüber dem Wasser, quer zum Fluss), die Strömung v₂ (gegenüber dem Ufer) und die Flussbreite stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x, längs des Flusses) und Ordinate (y, quer) sind in Metern bemaßt, der Ursprung liegt am Startpunkt. Die Boje startet am Startpunkt und treibt mit der Strömung. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei unten links. Unter „Kamera“ bleibt die Kamera am Ufer oder fährt mit der Boje oder dem Schwimmer mit. Steht sie am Ufer, verschiebst du das Bild mit gedrückter Maustaste. Die Laufzeit reicht bis zum anderen Ufer.",
+  kran:"Die Geschwindigkeit der Laufkatze v₂ (gegenüber dem Boden), das Absenken v₁ (gegenüber der Laufkatze) die Starthöhe der Last und die Länge des Auslegers stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x) und Ordinate (y, Höhe über dem Boden) sind in Metern bemaßt. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei oben links. Steht die Kamera am Boden, verschiebst du das Bild mit gedrückter Maustaste. Unter „Kamera“ steht die Kamera am Boden oder fährt mit der Laufkatze oder der Last mit. Am Auslegerende hält die Laufkatze an, dann sinkt die Last nur noch senkrecht. Alles ist maßstabsgetreu.",
+  schirm:"Den Wind v₂ (gegenüber dem Boden), das Sinken v₁ (gegenüber der Luft) und die Starthöhe stellst du direkt in der Szene ein: Wert anklicken. Abszisse (x) und Ordinate (y, Höhe über dem Boden) sind in Metern bemaßt. Mit dem Mausrad (oder + und −) zoomst du; der Startpunkt bleibt dabei oben links. Steht die Kamera am Boden, verschiebst du das Bild mit gedrückter Maustaste. Unter „Kamera“ steht die Kamera am Boden oder fährt mit der Kiste mit. Der Schirm ist etwa 8 m breit, die Kiste 1,6 m (bei kleinem Maßstab etwas größer gezeichnet, damit man sie erkennt).",
   band:"Gehgeschwindigkeit v₁ der Person, Geschwindigkeit v₂ des Laufbands (gegenüber dem Boden), Bandlänge und Bandanfang stellst du direkt in der Szene ein: Wert anklicken. Die Person kannst du vor dem Start auch verschieben; die 0 m liegt immer an ihrem Startpunkt. Mit dem Mausrad (oder + und −) zoomst du; das Bild fährt mit der Person mit. Alles ist maßstabsgetreu, das Geländer ist 1 m hoch."
 };
 function markLkw(){
@@ -2393,8 +2396,10 @@ const cScene = $("cScene");
 const hitAt = ev => { const r = cScene.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
   for (let i = S.hits.length - 1; i >= 0; i--){ const H = S.hits[i]; if (x >= H.x && x <= H.x + H.w && y >= H.y && y <= H.y + H.h) return { H, x, y }; } return null; };
 let drag = null;
+const Q2D = () => ["quer", "kran", "schirm"].includes(kontext().frei);
 cScene.addEventListener("pointermove", ev => {
   if (drag && drag.pan){ vals().pan = drag.x0 - (ev.clientX - drag.cx) / S.frame.sc; render(); return; }
+  if (drag && drag.pan2){ const F = vals(); F.qx = drag.x0 + (ev.clientX - drag.cx) / S.frame.sc; F.qy = drag.y0 + (ev.clientY - drag.cy) / S.frame.sc; render(); return; }
   if (drag){
     const dx = (ev.clientX - drag.cx) / (S.frame ? S.frame.sc : 1);
     const e = EDIT[drag.key]; vals()[drag.key] = Math.min(e.max, Math.max(e.min, Math.round(drag.x0 + drag.sg * dx))); render(); return;
@@ -2403,16 +2408,18 @@ cScene.addEventListener("pointermove", ev => {
   const dr = !!h && h.H.act.startsWith("drag");
   cScene.classList.toggle("hot", !!h && !dr);
   cScene.classList.toggle("drag", dr);
-  cScene.classList.toggle("grab", !h && !!kontext().frei && !!vals().fix);
+  cScene.classList.toggle("grab", !h && !!kontext().frei && (!!vals().fix || (Q2D() && !!S.pan2d)));
 });
 cScene.addEventListener("pointerdown", ev => {
   const h = hitAt(ev);
   if (!h){
     if (!$("edit").hidden){ closeEdit(); return; }
     const F = vals();
+    if (Q2D() && S.pan2d && S.frame){ drag = { cx:ev.clientX, cy:ev.clientY, x0:F.qx || 0, y0:F.qy || 0, pan2:true }; cScene.setPointerCapture(ev.pointerId); cScene.classList.add("grabbing"); ev.preventDefault(); return; }
     if (kontext().frei && F.fix && S.frame){ drag = { cx:ev.clientX, x0:F.pan, pan:true }; cScene.setPointerCapture(ev.pointerId); cScene.classList.add("grabbing"); ev.preventDefault(); }
     return;
   }
+  if (h.H.act === "panReset"){ ev.preventDefault(); const F = vals(); delete F.qx; delete F.qy; render(); return; }
   if (h.H.act === "camFix"){ ev.preventDefault(); const F = vals(); F.fix = !F.fix; if (F.fix) F.pan = S.v0; render(); return; }
   const DRAG = { dragL:"xL", dragA:"xA", dragP:"xB", dragB:"xBo", dragS:"xS" }; // Person ziehen = Band relativ zur Person verschieben
   if (DRAG[h.H.act]){ const key = DRAG[h.H.act]; drag = { cx:ev.clientX, x0:vals()[key], key, sg:key === "xB" ? -1 : 1 }; cScene.setPointerCapture(ev.pointerId); ev.preventDefault(); return; }
@@ -2424,9 +2431,15 @@ function zoom(fac){
   if (!kontext().frei) return;
   const F = vals();
   if (["quer", "kran", "schirm"].includes(kontext().frei)){ // Zoom 1 = ganzer Weg im Bild; näher heran bis 2 m Bildbreite
-    const fit = S.qFit || 100, nd = (F.D && F.D < fit ? F.D : fit) * fac;
-    if (nd >= fit * 0.999) delete F.D; else F.D = Math.max(2, nd);
-    S.t = Math.min(S.t, tEnd()); render(); return;
+    const fit = S.qFit || 100, nd = (F.D && F.D < fit ? F.D : fit) * fac, P = S.pan2d, panned = !!(F.qx || F.qy) && P;
+    const c = panned ? [P.wx(P.cx), P.wy(P.cy)] : null;
+    if (nd >= fit * 0.999){ delete F.D; delete F.qx; delete F.qy; } else F.D = Math.max(2, nd);
+    S.t = Math.min(S.t, tEnd());
+    if (c && F.D){ // Bildmitte bleibt beim Zoomen stehen
+      F.qx = 0; F.qy = 0; render(); const Q = S.pan2d;
+      F.qx = Q.wx(Q.cx) - c[0]; F.qy = c[1] - Q.wy(Q.cy);
+    }
+    render(); return;
   }
   const D0 = F.D; F.D = Math.min(5000, Math.max(2, F.D * fac));
   if (F.fix && isFinite(F.pan)) F.pan += (D0 - F.D) / 2; // feste Kamera: um die Bildmitte zoomen
