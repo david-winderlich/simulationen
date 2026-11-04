@@ -1421,17 +1421,15 @@ window.__v3init = function(){
         elec = { type:'leiter', c:c, e:vis.pol, list:list };
       }
     } else {
-      var GS = MF.GS, r = MF.coilRange(c), n = Math.round((r[1] - r[0]) / TAU * 40), pts2 = [];
-      for (var i2 = 0; i2 <= n; i2++) { var q2 = MF.coilPt(c, r[0] + (r[1] - r[0]) * i2 / n); pts2.push(W(c, q2.u, q2.v, q2.w)); }
-      root.add(tube(pts2, 0.06, mWire, false));
-      MF.coilEnds(c).forEach(function(e){
-        var lp = e.pts.map(function(q){ return W(c, q.u, q.v, q.w); });
-        var bend = lp.slice(0, lp.length - 1);
-        root.add(tube(bend, 0.06, mWire, false));
-        root.add(bar(lp[lp.length - 2], lp[lp.length - 1], 0.06, mWire));
-        var tm = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), mTerm); tm.position.copy(lp[lp.length - 1]); root.add(tm);
-        var s = vis.el == null ? '?' : ((vis.el * (e.k === 0 ? 1 : -1) > 0) ? '−' : '+');
-        var bd = signBadge(s, vis.marks.el === 'bad'); bd.position.copy(W(c, e.term.u + e.tau * 32, e.term.v, e.term.w)); root.add(bd);
+      var GS = MF.GS, cp = MF.coil3D(c), wp = cp.map(function(q){ return W(c, q.u, q.v, q.w); });
+      root.add(bar(wp[0], wp[1], 0.06, mWire));
+      root.add(tube(wp.slice(1, wp.length - 1), 0.06, mWire, false));
+      root.add(bar(wp[wp.length - 2], wp[wp.length - 1], 0.06, mWire));
+      [0, 1].forEach(function(k){
+        var tau = k ? 1 : -1, q = cp[k ? cp.length - 1 : 0];
+        var tm = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), mTerm); tm.position.copy(W(c, q.u, q.v, q.w)); root.add(tm);
+        var s = vis.el == null ? '?' : ((vis.el * (k === 0 ? 1 : -1) > 0) ? '−' : '+');
+        var bd = signBadge(s, vis.marks.el === 'bad'); bd.position.copy(W(c, q.u + tau * 32, q.v, q.w)); root.add(bd);
       });
       [-1, 1].forEach(function(d){
         var k = vis.mag == null ? '?' : (vis.mag * d > 0 ? 'N' : 'S');
@@ -1463,9 +1461,9 @@ window.__v3init = function(){
         root.add(cone(p, q.sub(p), mFl));
       });
       if (vis.elec) {
-        var ne = Math.round((r[1] - r[0]) / TAU * 4), lst = [];
+        var ne = 26, lst = [];
         for (var k2 = 0; k2 < ne; k2++) { var m2 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 12), mEl); root.add(m2); lst.push(m2); }
-        elec = { type:'spule', c:c, e:vis.el, list:lst };
+        elec = { type:'spule', c:c, e:vis.el, list:lst, path:MF.along(cp, function(q){ return [q.u, q.v, q.w]; }) };
       }
     }
   }
@@ -1477,8 +1475,8 @@ window.__v3init = function(){
       var G = MF.GL, span = 2 * G.half, step = span / list.length, off = ((s * 55 * elec.e) % step + step) % step;
       list.forEach(function(m, k){ var u = -G.half + off + k * step; m.visible = u < G.half - 4 && u > -G.half + 4; m.position.copy(W(c, u, 0, 0)); });
     } else {
-      var r = MF.coilRange(c), tot = r[1] - r[0], stp = tot / list.length, o = ((s * 1.6 * elec.e) % stp + stp) % stp;
-      list.forEach(function(m, k){ var ph = r[0] + o + k * stp; m.visible = ph <= r[1]; var q = MF.coilPt(c, Math.min(ph, r[1])); m.position.copy(W(c, q.u, q.v, q.w)); });
+      var ap = elec.path, stp = ap.len / list.length, o = ((s * 90 * elec.e) % stp + stp) % stp;
+      list.forEach(function(m, k){ var q = ap.at(o + k * stp).p; m.position.copy(W(c, q[0], q[1], q[2])); });
     }
   }
 
@@ -1528,15 +1526,15 @@ window.__v3init = function(){
    (w > 0) erscheinen um K·w in −u-Richtung verschoben (senkrecht: tiefer, waagerecht: weiter links). */
 var $ = function(id){ return document.getElementById(id); };
 var svg = $('pSvg'), ctrl = $('pCtrl');
-var K = 0.3, KS = 0.16, C0 = 250, TAU = Math.PI * 2;
+var K = 0.3, KS = 0, C0 = 250, TAU = Math.PI * 2;
 var GL = { half:175, R:80, rings:[-120, -60, 0, 60, 120], term:192 };
-var GS = { L:270, R:72, N:5, lead:150 };
+var GS = { L:270, R:72, M:10, lead:150 };
 
 /* ---------- Zustand ---------- */
 var st = {
   obj:'spule', dim:'2d', mode:'practice', elec:true,
   ex:{ leiter:{ type:'leiter', orient:'v', e:1 },
-       spule:{ type:'spule', orient:'h', h:1, s0:0, x:0, T:1, e:1 } },
+       spule:{ type:'spule', orient:'h', h:1, T:-1, e:1 } },
   given:{ leiter:'rand', spule:'rand' },
   task:{ leiter:null, spule:null },
   n:0, ok:0
@@ -1555,26 +1553,48 @@ function truth(c){
   return { feld:b, mag:b, el:c.e };
 }
 
-/* ---------- Spulengeometrie ---------- */
-function coilRange(c){ var a = c.s0 * Math.PI; return [a, a + TAU * GS.N + c.x * Math.PI]; }
-function coilPt(c, phi){
-  var r = coilRange(c), t = (phi - r[0]) / (r[1] - r[0]);
-  return { u:-GS.L / 2 + GS.L * t, v:GS.R * Math.cos(phi), w:c.h * GS.R * Math.sin(phi) };
+/* ---------- Spulengeometrie ----------
+   Aufbau wie im Handout: M schräge Windungsstücke zwischen runden Umkehrstellen (abwechselnd vorn/hinten),
+   an jedem Ende ein gerades Stück quer zur Achse, das über die Umkehrstelle direkt in die Windung übergeht
+   und bis zum Anschluss weiterläuft. Beide Anschlüsse liegen auf derselben Seite T (±1).
+   h = Umlaufsinn um +u in Laufrichtung vom Anfang (−u-Ende) zum Ende. Das Anfangsstück liegt vorn, wenn h·T > 0. */
+function startFront(c){ return c.h * c.T > 0; }
+function coil2D(c){
+  var L = GS.L, R = GS.R, M = GS.M, T = c.T, sf = startFront(c), segs = [];
+  function cu(j){ return -L / 2 + L * j / M; }
+  function cv(j){ return -T * R * (j % 2 === 0 ? 1 : -1); }
+  segs.push({ a:[-L / 2, T * GS.lead], b:[cu(0), cv(0)], front:sf });
+  for (var j = 0; j < M; j++) segs.push({ a:[cu(j), cv(j)], b:[cu(j + 1), cv(j + 1)], front:j % 2 === 0 ? !sf : sf });
+  segs.push({ a:[cu(M), cv(M)], b:[L / 2, T * GS.lead], front:!sf });
+  return segs;
 }
-/* Zuleitungen: verlassen die letzte Windung tangential (kein Knick), biegen zur Anschlussseite T um
-   und laufen dann gerade zum Anschluss. Beide Anschlüsse liegen immer auf derselben Seite (T). */
-function coilEnds(c){
-  var r = coilRange(c), pitch = GS.L / (r[1] - r[0]), rr = 22;
-  return [0, 1].map(function(k){
-    var phi = r[k], tau = k ? 1 : -1, sv = Math.round(Math.cos(phi)), sw = c.h * sv * tau, ue = tau * GS.L / 2, pts = [];
-    for (var i = 0; i <= 14; i++) {
-      var t = Math.PI / 2 * i / 14;
-      pts.push({ u:ue + tau * (pitch * rr / GS.R * Math.sin(t) + 5 * (1 - Math.cos(2 * t))), v:sv * GS.R + c.T * rr * (1 - Math.cos(t)), w:sw * rr * Math.sin(t) });
-    }
-    var last = pts[pts.length - 1];
-    pts.push({ u:last.u, v:c.T * GS.lead, w:last.w });
-    return { k:k, tau:tau, sv:sv, front:sw > 0, pts:pts, term:pts[pts.length - 1] };
-  });
+/* Echter Drahtverlauf in 3D (für die 3D-Ansicht und die Kontrollrechnung): gerade Zuleitung tangential an den Zylinder,
+   Viertelkreis bis zur ersten Umkehrstelle, Schraubenlinie mit M halben Umläufen, Viertelkreis, gerade Zuleitung. */
+function coil3D(c){
+  var L = GS.L, R = GS.R, M = GS.M, T = c.T, h = c.h, ws = startFront(c) ? 1 : -1, pts = [], i;
+  function circ(u, ph){ return { u:u, v:R * Math.cos(ph), w:R * Math.sin(ph) }; }
+  pts.push({ u:-L / 2, v:T * GS.lead, w:ws * R });
+  var pa = ws * Math.PI / 2, p0 = T > 0 ? Math.PI : 0;
+  var d0 = p0 - pa; while (d0 * h <= 0) d0 += h * TAU; while (Math.abs(d0) > Math.PI / 2 + 1e-9) d0 -= h * TAU;
+  for (i = 0; i <= 8; i++) pts.push(circ(-L / 2, pa + d0 * i / 8));
+  var n = M * 20;
+  for (i = 1; i <= n; i++) pts.push(circ(-L / 2 + L * i / n, p0 + h * Math.PI * M * i / n));
+  var pe = p0 + h * Math.PI * M;
+  for (i = 1; i <= 8; i++) pts.push(circ(L / 2, pe + h * Math.PI / 2 * i / 8));
+  var last = pts[pts.length - 1];
+  pts.push({ u:L / 2, v:T * GS.lead, w:last.w });
+  return pts;
+}
+/* Punkt bei Bogenlänge s auf einer Punktfolge (für die Elektronen) */
+function along(pts, get){
+  var cum = [0];
+  for (var i = 1; i < pts.length; i++) { var a = get(pts[i - 1]), b = get(pts[i]); cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0))); }
+  return { len:cum[cum.length - 1], at:function(s){
+    var lo = 0, hi = cum.length - 1;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (cum[mid] <= s) lo = mid; else hi = mid; }
+    var t = (s - cum[lo]) / ((cum[hi] - cum[lo]) || 1), a = get(pts[lo]), b = get(pts[hi]);
+    return { p:[a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), (a[2] || 0) + t * ((b[2] || 0) - (a[2] || 0))], i:lo };
+  } };
 }
 
 /* Feldlinien einer Spule (Länge L, Radius R) im Meridianschnitt (u entlang der Achse, p = Abstand von der Achse).
@@ -1753,28 +1773,18 @@ function drawLeiter(c, vis){
 
 function drawSpule(c, vis){
   var out = [], R = GS.R, L = GS.L, flc = vis.marks.feld === 'bad' ? 'var(--bad)' : 'var(--fl)';
-  var r = coilRange(c), n = Math.round((r[1] - r[0]) / TAU * 64);
-  // Windungen in vordere und hintere Stücke zerlegen
-  var runs = { f:[], b:[] }, cur = null, curSide = null;
-  for (var i = 0; i <= n; i++) {
-    var ph = r[0] + (r[1] - r[0]) * i / n, p = coilPt(c, ph);
-    var side = p.w > 1e-6 ? 'f' : (p.w < -1e-6 ? 'b' : curSide || (c.h * Math.sin(ph + 1e-3) > 0 ? 'f' : 'b'));
-    var sp = P(c, p.u, p.v, p.w);
-    if (side !== curSide) { if (cur) cur.push(sp); cur = [sp]; runs[side].push(cur); curSide = side; }
-    else cur.push(sp);
-  }
-  function wire(list, o, f, wo, wf){
-    return list.map(function(pts){ var d = pathOf(pts); return '<path d="' + d + '"' + sty(o, wo) + '/><path d="' + d + '"' + sty(f, wf) + '/>'; }).join('');
-  }
-  // Zuleitungen: Farbe wie das anschließende Windungsstück (vorn hell, hinten dunkel)
-  var ends = coilEnds(c), leadsB = '', leadsF = '', terms = '';
-  ends.forEach(function(e){
-    var d = pathOf(e.pts.map(function(q){ return P(c, q.u, q.v, q.w); }));
-    var s = e.front ? '<path d="' + d + '"' + sty('var(--wire-fo)', 16) + '/><path d="' + d + '"' + sty('var(--wire-f)', 11) + '/>'
-                    : '<path d="' + d + '"' + sty('var(--wire-bo)', 15) + '/><path d="' + d + '"' + sty('var(--wire-b)', 10) + '/>';
-    if (e.front) leadsF += s; else leadsB += s;
-    var b = P(c, e.term.u, e.term.v, e.term.w), l = P(c, e.term.u + e.tau * 26, e.term.v, e.term.w);
-    var sg = vis.el == null ? '?' : ((vis.el * (e.k === 0 ? 1 : -1) > 0) ? '−' : '+');   // el = +1: Elektronen vom Anfang (−u-Ende) zum Ende
+  // Draht wie im Handout: gerade Stücke mit runden Enden, vorn hell (mit Rand), hinten dunkel
+  var segs = coil2D(c), wireB = '', wireF = '', terms = '';
+  segs.forEach(function(g){
+    var a = P(c, g.a[0], g.a[1], 0), b = P(c, g.b[0], g.b[1], 0);
+    var d = 'M' + f1(a[0]) + ' ' + f1(a[1]) + ' L' + f1(b[0]) + ' ' + f1(b[1]);
+    if (g.front) wireF += '<path d="' + d + '"' + sty('var(--wire-fo)', 17) + '/><path d="' + d + '"' + sty('var(--wire-f)', 13) + '/>';
+    else wireB += '<path d="' + d + '"' + sty('var(--wire-b)', 14) + '/>';
+  });
+  [0, 1].forEach(function(k){
+    var tau = k ? 1 : -1, tu = tau * L / 2, tv = c.T * GS.lead;
+    var b = P(c, tu, tv, 0), l = P(c, tu + tau * 26, tv, 0);
+    var sg = vis.el == null ? '?' : ((vis.el * (k === 0 ? 1 : -1) > 0) ? '−' : '+');   // el = +1: Elektronen vom Anfang (−u-Ende) zum Ende
     terms += terminal(b[0], b[1]) + sign(l[0], l[1], sg, vis.marks.el === 'bad' ? 'var(--bad)' : null) + hitCircle(l[0], l[1], 20) + hitCircle(b[0], b[1], 16);
   });
   // Feldlinien (berechnet): Innenstücke liegen zwischen hinteren und vorderen Windungen
@@ -1797,10 +1807,10 @@ function drawSpule(c, vis){
     arrows += head(p0[0], p0[1], p1[0] - p0[0], p1[1] - p0[1], flc, 8);
   });
   out.push(hot('feld', axisL, 'Feldrichtung umkehren', vis.hot.feld));
-  out.push(wire(runs.b, 'var(--wire-bo)', 'var(--wire-b)', 15, 10) + leadsB);
+  out.push(wireB);
   out.push('<g id="eBack"></g>');
   out.push(hot('feld', inner, 'Feldrichtung umkehren', vis.hot.feld));
-  out.push(leadsF + wire(runs.f, 'var(--wire-fo)', 'var(--wire-f)', 16, 11));
+  out.push(wireF);
   out.push('<g id="eFront"></g>');
   out.push(hot('feld', outer + arrows + hits, 'Feldrichtung umkehren', vis.hot.feld));
   // Pole
@@ -1847,13 +1857,12 @@ function elecFrame(now){
     g.innerHTML = html;
   } else {
     var gb = $('eBack'), gf = $('eFront'); if (!gb || !gf) return;
-    var r = coilRange(c), tot = r[1] - r[0], ne = Math.round(tot / TAU * 4), stp = tot / ne;
-    var o = ((s * 1.6 * sp.e) % stp + stp) % stp, hb = '', hf = '';
+    if (!sp.path || sp.path.c !== c) { var sg2 = coil2D(c); sp.path = along([sg2[0].a].concat(sg2.map(function(g){ return g.b; })), function(q){ return q; }); sp.path.c = c; sp.segs = sg2; }
+    var ap = sp.path, ne = 26, stp = ap.len / ne, o = ((s * 70 * sp.e) % stp + stp) % stp, hb = '', hf = '';
     for (var j = 0; j < ne; j++) {
-      var ph = r[0] + o + j * stp; if (ph > r[1]) continue;
-      var q = coilPt(c, ph), pp = P(c, q.u, q.v, q.w);
-      var ci = '<circle cx="' + f1(pp[0]) + '" cy="' + f1(pp[1]) + '" r="4.2" style="fill:var(--el);stroke:var(--card);stroke-width:1.2' + (q.w < 0 ? ';opacity:.55' : '') + '"/>';
-      if (q.w < 0) hb += ci; else hf += ci;
+      var q = ap.at(o + j * stp), front = sp.segs[Math.min(q.i, sp.segs.length - 1)].front, pp = P(c, q.p[0], q.p[1], 0);
+      var ci = '<circle cx="' + f1(pp[0]) + '" cy="' + f1(pp[1]) + '" r="4.4" style="fill:var(--el);stroke:var(--card);stroke-width:1.2' + (front ? '' : ';opacity:.6') + '"/>';
+      if (front) hf += ci; else hb += ci;
     }
     gb.innerHTML = hb; gf.innerHTML = hf;
   }
@@ -1902,7 +1911,7 @@ function tipText(obj, task){
 /* ---------- Aufgaben ---------- */
 function randomCfg(obj){
   if (obj === 'leiter') return { type:'leiter', orient:rnd(['v', 'h']), e:sgn() };
-  return { type:'spule', orient:rnd(['h', 'h', 'v']), h:sgn(), s0:rnd([0, 1]), x:rnd([0, 1]), T:sgn(), e:sgn() };
+  return { type:'spule', orient:rnd(['h', 'h', 'v']), h:sgn(), T:sgn(), e:sgn() };
 }
 function newTask(obj){
   obj = obj || st.obj;
@@ -1998,7 +2007,7 @@ function renderExplore(){
   h += chipRow('Lage', 'orient', obj === 'leiter' ? [['v', 'senkrecht'], ['h', 'waagerecht']] : [['h', 'waagerecht'], ['v', 'senkrecht']]);
   if (obj === 'spule') {
     h += chipRow('Wickelsinn', 'h', [[1, 'A'], [-1, 'B']]);
-    h += '<div class="qrow"><span class="lab">Anschlüsse</span>' + btn('Anschlüsse umlegen', 'small', 'data-x="leads"') + '</div>';
+    h += '<div class="qrow"><span class="lab">Anschlüsse</span>' + btn('Anschlüsse auf die andere Seite', 'small', 'data-x="leads"') + '</div>';
   }
   h += '<div class="qrow"><span class="lab">' + qDot('el') + 'Plus- und Minuspol</span>' + btn('+ und − tauschen', 'small', 'data-x="e"') + '</div>';
   h += '</div>';
@@ -2053,7 +2062,7 @@ ctrl.addEventListener('click', function(ev){
     var c = st.ex[st.obj];
     if (b.dataset.k) { c[b.dataset.k] = b.dataset.k === 'orient' ? b.dataset.v : Number(b.dataset.v); }
     else if (b.dataset.x === 'e') c.e *= -1;
-    else if (b.dataset.x === 'leads') { var i = (c.s0 * 4 + c.x * 2 + (c.T > 0 ? 1 : 0) + 1) % 8; c.s0 = i >> 2; c.x = (i >> 1) & 1; c.T = i & 1 ? 1 : -1; }
+    else if (b.dataset.x === 'leads') c.T *= -1;
     else if (b.dataset.x === 'rand') st.ex[st.obj] = randomCfg(st.obj);
     render(); return;
   }
@@ -2138,7 +2147,7 @@ $('theme').addEventListener('click', function(){
 });
 
 window.__mf = { st:st, truth:truth, render:render, draw:draw, newTask:newTask, setObj:setObj, setMode:setMode, setDim:setDim, check:check, flipQ:flipQ,
-                coilPt:coilPt, coilRange:coilRange, coilEnds:coilEnds, coilField:coilField, runLen:runLen, runMid:runMid, GL:GL, GS:GS, K:K, currentScene:currentScene, explain:explain };
+                coil2D:coil2D, coil3D:coil3D, along:along, coilField:coilField, runLen:runLen, runMid:runMid, GL:GL, GS:GS, K:K, currentScene:currentScene, explain:explain };
 var so = null, sm = null;
 try { so = localStorage.getItem('magnetfelder-form'); sm = localStorage.getItem('magnetfelder-modus'); } catch (e) {}
 st.mode = sm === 'explore' ? 'explore' : 'practice';
